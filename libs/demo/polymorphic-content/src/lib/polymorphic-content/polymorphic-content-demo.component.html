@@ -1,0 +1,43 @@
+<mat-card class="mb-4">
+  <mat-card-header>
+    <mat-card-title> View Controller </mat-card-title>
+  </mat-card-header>
+  <mat-card-content>
+    <mat-form-field>
+      <mat-label>Content</mat-label>
+      <input matInput [formControl]="contentControl" />
+    </mat-form-field>
+    <mat-selection-list (selectionChange)="onWrapperSelectionChange($event)">
+      <div mat-subheader><strong>Wrappers selection</strong></div>
+      @for (wrapper of wrappers; track wrapper) {
+        <mat-list-option [value]="wrapper" [selected]="$selectedWrappers().includes(wrapper)">
+          {{ wrapper }}
+        </mat-list-option>
+      }
+    </mat-selection-list>
+  </mat-card-content>
+</mat-card>
+
+<mat-card class="mb-4">
+  <mat-card-header>
+    <mat-card-title> Polymorphic view </mat-card-title>
+  </mat-card-header>
+  <mat-card-content>
+    <polymorphic-outlet [content]="$polymorphicView()"></polymorphic-outlet>
+  </mat-card-content>
+</mat-card>
+
+<mat-card>
+  <mat-card-header>
+    <mat-card-title> Standart view </mat-card-title>
+  </mat-card-header>
+  <mat-card-content>
+    <with-badge [badge]="'Standart'">
+      <with-icon [icon]="'search'">
+        <with-tooltip [text]="'Standart tooltip'">
+          <span> {{ $controlValue() }} </span>
+        </with-tooltip>
+      </with-icon>
+    </with-badge>
+  </mat-card-content>
+</mat-card>

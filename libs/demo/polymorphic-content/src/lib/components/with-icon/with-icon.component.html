@@ -1,0 +1,9 @@
+@if (direction() === 'before') {
+<mat-icon [color]="color()" (click)="iconClicked.emit()">{{ icon() }}</mat-icon>
+}
+
+<ng-content><polymorphic-outlet [content]="content()"></polymorphic-outlet></ng-content>
+
+@if (direction() === 'after') {
+<mat-icon [color]="color()" (click)="iconClicked.emit()">{{ icon() }}</mat-icon>
+}

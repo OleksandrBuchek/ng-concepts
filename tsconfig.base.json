@@ -14,7 +14,24 @@
     "skipLibCheck": true,
     "skipDefaultLibCheck": true,
     "baseUrl": ".",
-    "paths": {}
+    "paths": {
+      "@demo/polymorphic-content": ["libs/demo/polymorphic-content/src/index.ts"],
+      "@shared/ui-loading-state": ["libs/shared/ui-loading-state/src/index.ts"],
+      "@shared/ui-polymorphic-outlet": ["libs/shared/ui-polymorphic-outlet/src/index.ts"],
+      "@shared/util-di": ["libs/shared/util-di/src/index.ts"],
+      "@shared/util-error-handling": ["libs/shared/util-error-handling/src/index.ts"],
+      "@shared/util-forms": ["libs/shared/util-forms/src/index.ts"],
+      "@shared/util-helpers": ["libs/shared/util-helpers/src/index.ts"],
+      "@shared/util-loading-state": ["libs/shared/util-loading-state/src/index.ts"],
+      "@shared/util-math": ["libs/shared/util-math/src/index.ts"],
+      "@shared/util-memoization": ["libs/shared/util-memoization/src/index.ts"],
+      "@shared/util-object": ["libs/shared/util-object/src/index.ts"],
+      "@shared/util-polymorphic-content": ["libs/shared/util-polymorphic-content/src/index.ts"],
+      "@shared/util-rxjs-interop": ["libs/shared/util-rxjs-interop/src/index.ts"],
+      "@shared/util-store": ["libs/shared/util-store/src/index.ts"],
+      "@shared/util-try-catch": ["libs/shared/util-try-catch/src/index.ts"],
+      "@shared/util-types": ["libs/shared/util-types/src/index.ts"]
+    }
   },
   "exclude": ["node_modules", "tmp"]
 }

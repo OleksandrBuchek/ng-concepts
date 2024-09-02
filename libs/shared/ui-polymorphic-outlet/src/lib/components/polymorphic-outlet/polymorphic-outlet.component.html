@@ -1,0 +1,20 @@
+@switch (true) {
+  @case (isComponent()) {
+    @if (asComponent(); as component) {
+      <ng-container [polymorphicComponentOutlet]="component"></ng-container>
+    }
+  }
+  @case (isTemplate()) {
+    @if (asTemplate(); as template) {
+      <ng-container
+        [ngTemplateOutlet]="template.templateRef"
+        [ngTemplateOutletContext]="template.context"
+      ></ng-container>
+    }
+  }
+
+  @default {
+    {{ asPrimitive$ | async }}
+  }
+}
+  
