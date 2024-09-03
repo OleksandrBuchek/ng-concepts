@@ -5,28 +5,15 @@ export type CreateInjectionTokenOptions<T> = {
   description: string;
   isRoot: boolean;
   deps: Provider[];
-} & (
-  | {
-      overrideResolver: (self: T, override: Partial<T>) => T;
-      allowPartialOverride: true;
-    }
-  | {
-      overrideResolver: (self: T, override: T) => T;
-      allowPartialOverride: false;
-    }
-);
+  overrideResolver: (self: T, override: T) => T;
+};
 
-export type CreateInjectionTokenResult<
-  FactoryFn extends (...args: any[]) => any,
-  Options extends Partial<CreateInjectionTokenOptions<ReturnType<FactoryFn>>>,
-> = {
+export type CreateInjectionTokenResult<FactoryFn extends (...args: any[]) => any> = {
   provide: (...params: Parameters<FactoryFn>) => Provider[];
   create: FactoryFn;
   inject: <T extends ReturnType<FactoryFn>>() => T;
   token: InjectionToken<ReturnType<FactoryFn>>;
   type: ReturnType<FactoryFn>;
   deps: Provider[];
-  override: Options['allowPartialOverride'] extends true
-    ? (overrideProvider: TypedInjectableProvider<Partial<ReturnType<FactoryFn>>>) => Provider[]
-    : (overrideProvider: TypedInjectableProvider<ReturnType<FactoryFn>>) => Provider[];
+  override: (overrideProvider: TypedInjectableProvider<ReturnType<FactoryFn>>) => Provider[];
 };

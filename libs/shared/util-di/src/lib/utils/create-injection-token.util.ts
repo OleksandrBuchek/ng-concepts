@@ -4,11 +4,10 @@ import { CreateInjectionTokenOptions, CreateInjectionTokenResult, TypedInjectabl
 const injectOverride = <T>(token: InjectionToken<T>) => ngInject(token, { skipSelf: true, optional: true });
 
 const mergeWithDefaultOptions = <T>(
-  override: Partial<CreateInjectionTokenOptions<T>>,
+  override: Partial<CreateInjectionTokenOptions<T>>
 ): CreateInjectionTokenOptions<T> => ({
   description: '',
   isRoot: false,
-  allowPartialOverride: false,
   overrideResolver: (self: T) => self,
   deps: [],
   ...override,
@@ -18,7 +17,7 @@ const provideFnFactory =
   <FactoryFn extends (...args: any[]) => any, Options extends CreateInjectionTokenOptions<ReturnType<FactoryFn>>>(
     create: FactoryFn,
     token: InjectionToken<ReturnType<FactoryFn>>,
-    options: Options,
+    options: Options
   ) =>
   (...params: Parameters<FactoryFn>): Provider[] =>
     [
@@ -37,11 +36,11 @@ const provideFnFactory =
 const overrideFnFactory =
   <FactoryFn extends (...args: any[]) => any, Options extends CreateInjectionTokenOptions<ReturnType<FactoryFn>>>(
     token: InjectionToken<ReturnType<FactoryFn>>,
-    options: Options,
+    options: Options
   ) =>
   (
     overrideProvider: TypedInjectableProvider<Partial<ReturnType<FactoryFn>> | ReturnType<FactoryFn>>,
-    overrideDeps: Provider[] = [],
+    overrideDeps: Provider[] = []
   ): Provider[] =>
     [
       {
@@ -54,11 +53,11 @@ const overrideFnFactory =
 
 export const createInjectionToken = <
   FactoryFn extends (...args: any[]) => any,
-  Options extends Partial<CreateInjectionTokenOptions<ReturnType<FactoryFn>>>,
+  Options extends Partial<CreateInjectionTokenOptions<ReturnType<FactoryFn>>>
 >(
   create: FactoryFn,
-  options: Options = {} as Options,
-): CreateInjectionTokenResult<FactoryFn, Options> => {
+  options: Options = {} as Options
+): CreateInjectionTokenResult<FactoryFn> => {
   type Type = ReturnType<FactoryFn>;
 
   const mergedOptions: CreateInjectionTokenOptions<Type> = mergeWithDefaultOptions(options);
