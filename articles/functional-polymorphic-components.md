@@ -99,7 +99,7 @@ export class MyComponent {
 
 ```
 
-2. `ngComponentOutletInputs` Input Property on `NgComponentOutlet` directive: This property allows you to pass an object containing input values directly to a dynamically rendered component via the ngComponentOutlet directive. The inputs provided this way are properly bound to the component instance, and change detection is automatically managed, ensuring that components using the `OnPush` strategy are marked for check when necessary:
+2. `ngComponentOutletInputs` Input Property on `NgComponentOutlet` directive: This property allows you to pass an object containing input values directly to a dynamically rendered component via the `NgComponentOutlet` directive. The inputs provided this way are properly bound to the component instance, and change detection is automatically managed, ensuring that components using the `OnPush` strategy are marked for check when necessary:
 
 ```ts
 @Component({
@@ -319,7 +319,7 @@ export class MyComponent {
 }
 ```
 
-If you prefer not to be tied to a specific component class but rather to an interface—which is often the case—you can define an interface that a component can implement. This approach is useful in situations where you need to pass inputs and outputs but are not concerned about the specific class being used:
+By distinguishing input signals from other component properties, we can create interfaces that our components implement. This approach enables us to decouple our code from specific component classes and rely on an interface instead, which is the essence of polymorphism. It allows us to handle inputs and outputs without needing to know the exact class being used:
 
 ```ts
 
