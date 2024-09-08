@@ -7,7 +7,9 @@ import {
   catchAppError,
   handleError,
 } from '@shared/util-error-handling';
+import { getValue } from '@shared/util-helpers';
 import { RequestStatus } from '@shared/util-store';
+import { ValueOrFactory } from '@shared/util-types';
 import { Observable, pipe, tap, switchMap, from, filter, take } from 'rxjs';
 
 export interface RxRequestParams<Input = void, Response = unknown> {
@@ -16,7 +18,7 @@ export interface RxRequestParams<Input = void, Response = unknown> {
     setError(error: AppError<HttpErrorResponse> | null): void;
     setRequestStatus(status: RequestStatus): void;
   }>;
-  errorHandler?: () => Partial<HttpErrorHandlersMap>;
+  errorHandler?: ValueOrFactory<Partial<HttpErrorHandlersMap>>;
   shouldFetch?: (input: Input) => boolean;
   onError?: (error: AppError<HttpErrorResponse>, input: Input) => void;
   onSuccess?: (response: Response, input: Input) => void;
@@ -48,7 +50,7 @@ export const rxRequest = <Input = void, Response = unknown>(
         catchAppError((error) => {
           runInInjectionContext(injector, () => {
             params.onError?.(error, input);
-            handleError(error, params.errorHandler);
+            handleError(error, getValue(params.errorHandler));
           });
 
           params.store?.setError?.(error);
