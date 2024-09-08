@@ -1,0 +1,1 @@
+export const EMPTY_PAYLOAD_FACTORY_FN = (): void => undefined;

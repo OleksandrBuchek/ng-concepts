@@ -19,6 +19,7 @@
       "@shared/ui-loading-state": ["libs/shared/ui-loading-state/src/index.ts"],
       "@shared/ui-polymorphic-outlet": ["libs/shared/ui-polymorphic-outlet/src/index.ts"],
       "@shared/util-di": ["libs/shared/util-di/src/index.ts"],
+      "@shared/util-effects": ["libs/shared/util-effects/src/index.ts"],
       "@shared/util-error-handling": ["libs/shared/util-error-handling/src/index.ts"],
       "@shared/util-forms": ["libs/shared/util-forms/src/index.ts"],
       "@shared/util-helpers": ["libs/shared/util-helpers/src/index.ts"],
