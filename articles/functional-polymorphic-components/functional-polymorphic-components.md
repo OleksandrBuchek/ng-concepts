@@ -10,9 +10,9 @@ As developers strive to make their code more flexible, maintainable, and scalabl
 @if(isCardVisible) {
 <mat-card>
   @if(isHeaderVisible) {
-    <mat-card-header>
-      <mat-card-title>Title</mat-card-title>
-    </mat-card-header>
+  <mat-card-header>
+    <mat-card-title>Title</mat-card-title>
+  </mat-card-header>
   }
 
   <mat-card-content [matTooltip]="shouldDisplayTooltip ? 'tooltip text' : null"> Card content </mat-card-content>
@@ -23,15 +23,13 @@ As developers strive to make their code more flexible, maintainable, and scalabl
 2. Relying Heavily on `if` or `switch` Statements: Your view depends heavily on conditional logic to display different elements:
 
 ```html
-@switch(true) { 
-  @case(viewMode === 'list') {
-    <app-list-view></app-list-view>
-  } @case(viewMode === 'grid') {
-    <app-grid-view></app-grid-view>
-  } @case(viewMode === 'detail') {
-    <app-detail-view></app-detail-view>
-  }
-} 
+@switch(true) { @case(viewMode === 'list') {
+<app-list-view></app-list-view>
+} @case(viewMode === 'grid') {
+<app-grid-view></app-grid-view>
+} @case(viewMode === 'detail') {
+<app-detail-view></app-detail-view>
+} }
 ```
 
 3. Hardcoding Multiple Versions of a View: You’re creating multiple versions of the same view to handle different scenarios:
@@ -226,7 +224,6 @@ export class PolymorphicComponent<TComponent extends Type<any> = Type<any>> {
 
 When the component is rendered in a template with a dedicated directive, the necessary inputs and outputs are correctly propagated to the encapsulated component.
 
-
 ## Enough theory, let’s see this in action
 
 To create a polymorphic component, we are instantiating the `PolymorphicComponent` class and pass a component class to it with inputs and outputs:
@@ -402,9 +399,7 @@ With the introduction of signals in Angular, it's advantageous when a solution s
 To efficiently generate multiple instances of the same component with varied settings, using the `createPolymorphicComponent` function is ideal due to its support for currying:
 
 ```ts
-export const createPolymorphicComponent = <TComponent extends Type<any>>(
-  component: TComponent
-): PolymorphicComponentFactory<TComponent> => {
+export const createPolymorphicComponent = <TComponent extends Type<any>>(component: TComponent): PolymorphicComponentFactory<TComponent> => {
   return (params?: PolymorphicComponentParams<TComponent>) => {
     return new PolymorphicComponent(component, (params ?? {}) as PolymorphicComponentParams<TComponent>);
   };
@@ -470,12 +465,9 @@ export type TemplateWithContext<T> = {
   context: T;
 };
 
-export type ValueOrReactive<TValue> =
-  | TValue
-  | Observable<TValue>
-  | Signal<TValue>;
+export type ValueOrReactive<TValue> = TValue | Observable<TValue> | Signal<TValue>;
 
-export type PolymorphicPrimitive =  ValueOrReactive<number | string | null | undefined>;
+export type PolymorphicPrimitive = ValueOrReactive<number | string | null | undefined>;
 
 export type PolymorphicContent<T> = PolymorphicComponent<Type<T>> | TemplateWithContext<T> | PolymorphicPrimitive;
 ```
@@ -504,26 +496,11 @@ export const polymorphicOutlet = createPolymorphicComponent(PolymorphicOutletCom
 ```
 
 ```html
-@switch (true) {
-  @case (isComponent()) {
-    @if (asComponent(); as component) {
-      <ng-container *polymorphicComponentOutlet="component"></ng-container>
-    }
-  }
-
-  @case (isTemplate()) {
-    @if (asTemplate(); as template) {
-      <ng-container
-        [ngTemplateOutlet]="template.templateRef"
-        [ngTemplateOutletContext]="template.context"
-      ></ng-container>
-    }
-  }
-
-  @default {
-    {{ asPrimitive() }}
-  }
-}
+@switch (true) { @case (isComponent()) { @if (asComponent(); as component) {
+<ng-container *polymorphicComponentOutlet="component"></ng-container>
+} } @case (isTemplate()) { @if (asTemplate(); as template) {
+<ng-container [ngTemplateOutlet]="template.templateRef" [ngTemplateOutletContext]="template.context"></ng-container>
+} } @default { {{ asPrimitive() }} } }
 ```
 
 Now, let's develop several wrapper components designed to accept content and enhance it with additional visual elements or behaviors. These components will implement the `WithPolymorphicContent` interface, ensuring they possess a content input of the type `InputSignal<PolymorphicContent<T>>`. Each component will utilize the previously defined `polymorphic-outlet` in their templates to dynamically render the provided content:
@@ -612,9 +589,7 @@ createIconComponent({
 Finally, let's define a function to streamline the composition of views by iterating over a list of wrapper components. Using the `reduce` function, we can apply each wrapper sequentially, thereby enclosing a given content (whether it be a component, template, or string) within all specified wrappers. This method offers extensive customization options, making it easy to combine multiple wrappers around any piece of content:
 
 ```ts
-export const composePolymorphicWrappers = (
-  ...wrappers: Array<PolymorphicComponentFactory<Type<WithPolymorphicContent>>>
-) => {
+export const composePolymorphicWrappers = (...wrappers: Array<PolymorphicComponentFactory<Type<WithPolymorphicContent>>>) => {
   return (content: PolymorphicContent<any>): PolymorphicContent<any> => {
     return wrappers.reduce(
       (acc, curr) =>
@@ -698,7 +673,6 @@ These initial configurations generate factory functions, which are then coordina
 Finally, the `polymorphicView` is rendered through the `polymorphic-outlet` component:
 
 ```html
-
 <polymorphic-outlet [content]="polymorphicView"></polymorphic-outlet>
 ```
 
