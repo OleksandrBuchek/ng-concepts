@@ -68,6 +68,8 @@ export const createInjectionToken = <
 
   const inject = () => ngInject(token);
 
+  const injectAsOptional = () => ngInject(token, { optional: true });
+
   const provide = provideFnFactory(create, token, mergedOptions);
   const override = overrideFnFactory(token, mergedOptions);
 
@@ -76,6 +78,7 @@ export const createInjectionToken = <
     create,
     override,
     inject,
+    injectAsOptional,
     token,
     deps: mergedOptions.deps,
     type: {} as Type,
