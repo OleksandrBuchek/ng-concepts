@@ -4,7 +4,6 @@ import { concatMap, every, filter, from, map, merge, Observable, switchMap, take
 import { RxEffectParams } from '../models';
 import { ValueOrReactive } from '@shared/util-types';
 import { EffectErrorHandler, EffectLoadingStore } from '../providers';
-import { getValue } from '@shared/util-helpers';
 
 const composeGuardChecks = <Payload>(injector: Injector, params: RxEffectParams<Payload>) => {
   return (payload: Payload): Observable<boolean> =>
@@ -24,7 +23,7 @@ const composeGuardChecks = <Payload>(injector: Injector, params: RxEffectParams<
     );
 };
 
-const beforeAll = <Fn extends (...args: any[]) => any>(fn: Fn): ReturnType<Fn> => {
+const onInit = <Fn extends (...args: any[]) => any>(fn: Fn): ReturnType<Fn> => {
   EffectLoadingStore.injectAsOptional()?.setRequestStatus('Loading');
 
   return fn();
@@ -35,7 +34,7 @@ const extractActionPayload = <Payload>(injector: Injector, params: RxEffectParam
 
   return merge(...actionChanges$).pipe(
     switchMap((event) =>
-      runInInjectionContext(injector, () => beforeAll(() => asObservable(event.payload.factory(...event.payload.args))))
+      runInInjectionContext(injector, () => onInit(() => asObservable(event.payload.factory(...event.payload.args))))
     )
   );
 };
@@ -52,10 +51,12 @@ const getInjector = <Payload>(params: RxEffectParams<Payload>): Injector => {
   return Injector.create({
     parent: parentInjector,
     providers: [
-      ...(params.providers ?? []),
+      params.providers,
       params.store && EffectLoadingStore.provide(params.store),
-      params.errorHandler && EffectErrorHandler.provide(getValue(params.errorHandler)),
-    ].filter((provider): provider is Provider => Boolean(provider)),
+      params.errorHandler && EffectErrorHandler.provide(params.errorHandler),
+    ]
+      .flat()
+      .filter((provider): provider is Provider => Boolean(provider)),
   });
 };
 
@@ -72,7 +73,7 @@ export const rxEffect = <Payload>(params: RxEffectParams<Payload>) => {
 
   return (payload: ValueOrReactive<Payload>): void => {
     runInInjectionContext(injector, () => {
-      beforeAll(() => params.effectFn(ifGuardsAllow(payload)));
+      onInit(() => params.effectFn(ifGuardsAllow(payload)));
     });
   };
 };

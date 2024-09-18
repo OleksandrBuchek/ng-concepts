@@ -5,9 +5,7 @@ import { getValue } from '@shared/util-helpers';
 import { HttpErrorHandlersMap } from '../models';
 import { HTTP_ERROR_RESPONSE_HANDLERS_MAP_DEFAULT } from '../consts/http-error-response-handlers-map-default.constant';
 
-export const createHttpErrorHandlersMap = (
-  override: Partial<HttpErrorHandlersMap> = {}
-) => ({
+export const createHttpErrorHandlersMap = (override: Partial<HttpErrorHandlersMap> = {}) => ({
   ...HTTP_ERROR_RESPONSE_HANDLERS_MAP_DEFAULT,
   ...override,
 });
@@ -25,5 +23,5 @@ export const handleError = (
 
   const handler = handlersMap[error.origin.status as HttpStatusCode];
 
-  handler && handler(error);
+  handler?.(error);
 };

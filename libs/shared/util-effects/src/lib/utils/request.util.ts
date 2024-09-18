@@ -1,65 +1,121 @@
 import { Injector, inject, runInInjectionContext } from '@angular/core';
 import { rxMethod } from '@ngrx/signals/rxjs-interop';
-import { catchAppError, handleError } from '@shared/util-error-handling';
+import { AppError, catchAppError, handleError } from '@shared/util-error-handling';
 import { getValue } from '@shared/util-helpers';
 import { pipe, tap, switchMap, from, filter, take, map } from 'rxjs';
-import { FetchEntitiesParams, RxRequestParams, RxRequestPipelineParams } from '../models';
+import {
+  FetchEntitiesParams,
+  RxRequestParams,
+  RxRequestPipeline,
+  RxRequestPipelineModificationFn,
+  RxRequestPipelineParams,
+} from '../models';
 import { EffectErrorHandler, EffectLoadingStore } from '../providers';
 import { ValueOrReactive } from '@shared/util-types';
 import { asObservable } from '@shared/util-rxjs-interop';
+import { HttpErrorResponse } from '@angular/common/http';
 
-export const rxRequest = <Input = void, Response = unknown>(params: RxRequestParams<Input, Response>) => {
+const handleErrorFor = <Input = void, Response = unknown>(
+  input: Input,
+  error: AppError<HttpErrorResponse>,
+  params: RxRequestParams<Input, Response>
+) => {
+  params.store?.setError?.(error);
+  params.onError?.(error, input);
+  handleError(error, getValue(params.errorHandler) ?? {});
+  params.store?.setRequestStatus?.('Failed');
+};
+
+const handleSuccessFor = <Input = void, Response = unknown>(
+  input: Input,
+  response: Response,
+  params: RxRequestParams<Input, Response>
+) => {
+  params.store?.setError?.(null);
+  params.onSuccess?.(response, input);
+  params.store?.setRequestStatus?.('Success');
+};
+
+const withSingleInvocation =
+  <Input = void, Response = unknown>(params: RxRequestParams<Input, Response>) =>
+  (pipeline: RxRequestPipeline<Input>) => {
+    return params.once ? pipe(pipeline, take(1)) : pipeline;
+  };
+
+const withFilter =
+  <Input = void, Response = unknown>(params: RxRequestParams<Input, Response>) =>
+  (pipeline: RxRequestPipeline<Input>) => {
+    return pipe(
+      filter(({ input }: RxRequestPipelineParams<Input>) => params.shouldFetch?.(input) ?? true),
+      pipeline
+    );
+  };
+
+const composePipeline =
+  <Input = void>(...modifications: Array<RxRequestPipelineModificationFn<Input>>) =>
+  (pipelineBase: RxRequestPipeline<Input>): RxRequestPipeline<Input> => {
+    return modifications.reduce((pipeline, modifyPipeline) => modifyPipeline(pipeline), pipelineBase);
+  };
+
+const getRequestPipeline = <Input = void, Response = unknown>(params: RxRequestParams<Input, Response>) => {
   const pipeline = pipe(
-    filter(({ input }: RxRequestPipelineParams<Input>) => (params.shouldFetch ? params.shouldFetch(input) : true)),
-    tap(() => {
-      params.store?.setRequestStatus?.('Loading');
-    }),
-    switchMap(({ input, injector }: RxRequestPipelineParams<Input>) =>
-      from(runInInjectionContext(injector, () => params.requestFn(input))).pipe(
+    switchMap(({ input, injector }: RxRequestPipelineParams<Input>) => {
+      const request$ = from(runInInjectionContext(injector, () => params.requestFn(input)));
+
+      return request$.pipe(
         tap((response) => {
           runInInjectionContext(injector, () => {
-            params.store?.setRequestStatus?.('Success');
-
-            params.onSuccess?.(response, input);
-            params.store?.setError?.(null);
+            handleSuccessFor(input, response, params);
           });
         }),
         catchAppError((error) => {
           runInInjectionContext(injector, () => {
-            const effectLoadingStore = EffectLoadingStore.injectAsOptional();
-            effectLoadingStore?.setError(error);
-            effectLoadingStore?.setRequestStatus('Failed');
-            handleError(error, EffectErrorHandler.injectAsOptional() ?? {});
+            handleErrorFor(input, error, {
+              ...params,
+              store: EffectLoadingStore.injectAsOptional(),
+              errorHandler: EffectErrorHandler.injectAsOptional(),
+            });
 
-            params.store?.setError?.(error);
-            params.store?.setRequestStatus?.('Failed');
-            params.onError?.(error, input);
-            handleError(error, getValue(params.errorHandler));
+            handleErrorFor(input, error, params);
           });
         })
-      )
-    )
+      );
+    })
   );
 
+  return pipeline;
+};
+
+const getPipeline = <Input = void, Response = unknown>(params: RxRequestParams<Input, Response>) => {
+  const mainPipeline = pipe(
+    tap<RxRequestPipelineParams<Input>>(() => {
+      params.store?.setRequestStatus?.('Loading');
+    }),
+    getRequestPipeline(params)
+  );
+
+  return composePipeline(withFilter(params), withSingleInvocation(params))(mainPipeline);
+};
+
+export const rxRequest = <Input = void, Response = unknown>(params: RxRequestParams<Input, Response>) => {
   const outerInjector = inject(Injector);
 
-  const callback = rxMethod<{ input: Input; injector: Injector }>(params.once ? pipe(pipeline, take(1)) : pipeline);
+  const runPipeline = rxMethod(getPipeline(params));
 
   return (input: ValueOrReactive<Input>) => {
     const injector = inject(Injector, { optional: true }) ?? outerInjector;
 
-    return callback(asObservable(input).pipe(map((input) => ({ input, injector }))));
+    const pipelineInput$ = asObservable(input).pipe(map((input) => ({ input, injector })));
+
+    return runPipeline(pipelineInput$);
   };
 };
 
 export const fetchEntities = <Entity, Input = void>(params: FetchEntitiesParams<Entity, Input>) => {
   return rxRequest<Input, Entity[]>({
     ...params,
-    requestFn: (input) =>
-      from(params.requestFn(input)).pipe(
-        tap((collection) => {
-          params.store.setAllEntities(collection);
-        })
-      ),
+    onSuccess: (response) => {
+      params.store.setAllEntities(response);
+    },
   });
 };

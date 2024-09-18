@@ -2,7 +2,7 @@ import { HttpErrorResponse } from '@angular/common/http';
 import { Injector } from '@angular/core';
 import { AppError, HttpErrorHandlersMap } from '@shared/util-error-handling';
 import { ValueOrFactory } from '@shared/util-types';
-import { Observable } from 'rxjs';
+import { Observable, UnaryFunction } from 'rxjs';
 import { EffectState } from './effect-store.model';
 
 export type RxRequestPipelineParams<Input> = {
@@ -10,10 +10,19 @@ export type RxRequestPipelineParams<Input> = {
   injector: Injector;
 };
 
+export type RxRequestPipeline<Input = void> = UnaryFunction<
+  Observable<RxRequestPipelineParams<Input>>,
+  Observable<any>
+>;
+
+export type RxRequestPipelineModificationFn<Input = void> = (
+  pipeline: RxRequestPipeline<Input>
+) => RxRequestPipeline<Input>;
+
 export interface RxRequestParams<Input = void, Response = unknown> {
   requestFn: (input: Input) => Observable<Response> | Promise<Response>;
-  store?: Partial<EffectState>;
-  errorHandler?: ValueOrFactory<Partial<HttpErrorHandlersMap>>;
+  store?: Partial<EffectState> | null;
+  errorHandler?: ValueOrFactory<Partial<HttpErrorHandlersMap>> | null;
   shouldFetch?: (input: Input) => boolean;
   onError?: (error: AppError<HttpErrorResponse>, input: Input) => void;
   onSuccess?: (response: Response, input: Input) => void;
