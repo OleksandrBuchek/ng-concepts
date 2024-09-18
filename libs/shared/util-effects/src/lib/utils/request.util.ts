@@ -2,7 +2,7 @@ import { Injector, inject, runInInjectionContext } from '@angular/core';
 import { rxMethod } from '@ngrx/signals/rxjs-interop';
 import { AppError, catchAppError, handleError } from '@shared/util-error-handling';
 import { getValue } from '@shared/util-helpers';
-import { pipe, tap, switchMap, from, filter, take, map } from 'rxjs';
+import { pipe, tap, switchMap, from, filter, take, map, retry, defer } from 'rxjs';
 import {
   FetchEntitiesParams,
   RxRequestParams,
@@ -10,7 +10,7 @@ import {
   RxRequestPipelineModifierFn,
   RxRequestPipelineInput,
 } from '../models';
-import { EffectErrorHandler, EffectLoadingStore } from '../providers';
+import { IsFinalRequest, RequestErrorHandler, RequestLoadingStore } from '../providers';
 import { ValueOrReactive } from '@shared/util-types';
 import { asObservable } from '@shared/util-rxjs-interop';
 import { HttpErrorResponse } from '@angular/common/http';
@@ -56,30 +56,41 @@ const withFilter =
   };
 
 const composePipeline =
-  <Input = void>(...modifications: Array<RxRequestPipelineModifierFn<Input>>) =>
+  <Input = void>(...modifiers: Array<RxRequestPipelineModifierFn<Input>>) =>
   (pipelineBase: RxRequestPipeline<Input>): RxRequestPipeline<Input> => {
-    return modifications.reduce((pipeline, modifyPipeline) => modifyPipeline(pipeline), pipelineBase);
+    return modifiers.reduce((pipeline, modifyPipeline) => modifyPipeline(pipeline), pipelineBase);
   };
 
 const getRequestPipeline = <Input = void, Response = unknown>(params: RxRequestParams<Input, Response>) => {
   const pipeline = pipe(
     tap<RxRequestPipelineInput<Input>>(() => {
+      params.before?.();
       params.store?.setRequestStatus?.('Loading');
     }),
     switchMap(({ input, injector }: RxRequestPipelineInput<Input>) => {
-      const request$ = from(runInInjectionContext(injector, () => params.requestFn(input)));
+      const request$ = defer(() => from(runInInjectionContext(injector, () => params.requestFn(input))));
 
       return request$.pipe(
+        retry({
+          count: 3,
+          delay: 1000,
+        }),
         tap((response) => {
           runInInjectionContext(injector, () => {
             handleSuccessFor(input, response, params);
+
+            if (IsFinalRequest.injectAsOptional()) {
+              handleSuccessFor(input, response, {
+                store: RequestLoadingStore.injectAsOptional(),
+              });
+            }
           });
         }),
         catchAppError((error) => {
           runInInjectionContext(injector, () => {
             handleErrorFor(input, error, {
-              store: EffectLoadingStore.injectAsOptional(),
-              errorHandler: EffectErrorHandler.injectAsOptional(),
+              store: RequestLoadingStore.injectAsOptional(),
+              errorHandler: RequestErrorHandler.injectAsOptional(),
             });
 
             handleErrorFor(input, error, params);
@@ -113,7 +124,8 @@ export const rxRequest = <Input = void, Response = unknown>(params: RxRequestPar
 export const fetchEntities = <Entity, Input = void>(params: FetchEntitiesParams<Entity, Input>) => {
   return rxRequest<Input, Entity[]>({
     ...params,
-    onSuccess: (response) => {
+    onSuccess: (response, input) => {
+      params.onSuccess?.(response, input);
       params.store.setAllEntities(response);
     },
   });

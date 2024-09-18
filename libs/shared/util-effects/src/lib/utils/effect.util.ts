@@ -3,7 +3,7 @@ import { asObservable } from '@shared/util-rxjs-interop';
 import { concatMap, every, filter, from, map, merge, Observable, switchMap, take, tap } from 'rxjs';
 import { RxEffectParams } from '../models';
 import { ValueOrReactive } from '@shared/util-types';
-import { EffectErrorHandler, EffectLoadingStore } from '../providers';
+import { IsFinalRequest, RequestErrorHandler, RequestLoadingStore } from '../providers';
 
 const composeGuardChecks = <Payload>(injector: Injector, params: RxEffectParams<Payload>) => {
   return (payload: Payload): Observable<boolean> =>
@@ -16,7 +16,7 @@ const composeGuardChecks = <Payload>(injector: Injector, params: RxEffectParams<
       ),
       tap((success) => {
         if (success === false) {
-          runInInjectionContext(injector, () => EffectLoadingStore.injectAsOptional()?.setRequestStatus('Idle'));
+          runInInjectionContext(injector, () => RequestLoadingStore.injectAsOptional()?.setRequestStatus('Idle'));
         }
       }),
       filter((success) => success)
@@ -24,7 +24,7 @@ const composeGuardChecks = <Payload>(injector: Injector, params: RxEffectParams<
 };
 
 const onInit = <Fn extends (...args: any[]) => any>(fn: Fn): ReturnType<Fn> => {
-  EffectLoadingStore.injectAsOptional()?.setRequestStatus('Loading');
+  RequestLoadingStore.injectAsOptional()?.setRequestStatus('Loading');
 
   return fn();
 };
@@ -52,11 +52,18 @@ const getInjector = <Payload>(params: RxEffectParams<Payload>): Injector => {
     parent: parentInjector,
     providers: [
       params.providers,
-      params.store && EffectLoadingStore.provide(params.store),
-      params.errorHandler && EffectErrorHandler.provide(params.errorHandler),
+      params.store && RequestLoadingStore.provide(params.store),
+      params.errorHandler && RequestErrorHandler.provide(params.errorHandler),
     ]
       .flat()
       .filter((provider): provider is Provider => Boolean(provider)),
+  });
+};
+
+const getEffectFnInjector = (parent: Injector): Injector => {
+  return Injector.create({
+    parent,
+    providers: [IsFinalRequest.provide(true)],
   });
 };
 
@@ -67,12 +74,14 @@ export const rxEffect = <Payload>(params: RxEffectParams<Payload>) => {
 
   const ifGuardsAllow = withGuardsCheck(composeGuardChecks(injector, params));
 
-  runInInjectionContext(injector, () => {
+  const effectFnInjector = getEffectFnInjector(injector);
+
+  runInInjectionContext(effectFnInjector, () => {
     params.effectFn(ifGuardsAllow(actionPayload$));
   });
 
   return (payload: ValueOrReactive<Payload>): void => {
-    runInInjectionContext(injector, () => {
+    runInInjectionContext(effectFnInjector, () => {
       onInit(() => params.effectFn(ifGuardsAllow(payload)));
     });
   };

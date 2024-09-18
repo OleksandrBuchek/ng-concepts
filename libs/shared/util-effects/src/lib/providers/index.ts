@@ -1,2 +1,3 @@
-export * from './error-handler.provider';
-export * from './loading-state.provider';
+export * from './request-error-handler.provider';
+export * from './request-loading-state.provider';
+export * from './is-final-request.provider';
