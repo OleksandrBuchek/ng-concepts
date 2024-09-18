@@ -5,17 +5,17 @@ import { ValueOrFactory } from '@shared/util-types';
 import { Observable, UnaryFunction } from 'rxjs';
 import { EffectState } from './effect-store.model';
 
-export type RxRequestPipelineParams<Input> = {
+export type RxRequestPipelineInput<Input> = {
   input: Input;
   injector: Injector;
 };
 
 export type RxRequestPipeline<Input = void> = UnaryFunction<
-  Observable<RxRequestPipelineParams<Input>>,
-  Observable<any>
+  Observable<RxRequestPipelineInput<Input>>,
+  Observable<unknown>
 >;
 
-export type RxRequestPipelineModificationFn<Input = void> = (
+export type RxRequestPipelineModifierFn<Input = void> = (
   pipeline: RxRequestPipeline<Input>
 ) => RxRequestPipeline<Input>;
 

@@ -7,8 +7,8 @@ import {
   FetchEntitiesParams,
   RxRequestParams,
   RxRequestPipeline,
-  RxRequestPipelineModificationFn,
-  RxRequestPipelineParams,
+  RxRequestPipelineModifierFn,
+  RxRequestPipelineInput,
 } from '../models';
 import { EffectErrorHandler, EffectLoadingStore } from '../providers';
 import { ValueOrReactive } from '@shared/util-types';
@@ -18,7 +18,7 @@ import { HttpErrorResponse } from '@angular/common/http';
 const handleErrorFor = <Input = void, Response = unknown>(
   input: Input,
   error: AppError<HttpErrorResponse>,
-  params: RxRequestParams<Input, Response>
+  params: Pick<RxRequestParams<Input, Response>, 'onError' | 'errorHandler' | 'store'>
 ) => {
   params.store?.setError?.(error);
   params.onError?.(error, input);
@@ -29,7 +29,7 @@ const handleErrorFor = <Input = void, Response = unknown>(
 const handleSuccessFor = <Input = void, Response = unknown>(
   input: Input,
   response: Response,
-  params: RxRequestParams<Input, Response>
+  params: Pick<RxRequestParams<Input, Response>, 'store' | 'onSuccess'>
 ) => {
   params.store?.setError?.(null);
   params.onSuccess?.(response, input);
@@ -45,21 +45,28 @@ const withSingleInvocation =
 const withFilter =
   <Input = void, Response = unknown>(params: RxRequestParams<Input, Response>) =>
   (pipeline: RxRequestPipeline<Input>) => {
-    return pipe(
-      filter(({ input }: RxRequestPipelineParams<Input>) => params.shouldFetch?.(input) ?? true),
-      pipeline
-    );
+    const shouldFetch = params.shouldFetch;
+
+    return shouldFetch
+      ? pipe(
+          filter<RxRequestPipelineInput<Input>>(({ input }) => shouldFetch(input)),
+          pipeline
+        )
+      : pipeline;
   };
 
 const composePipeline =
-  <Input = void>(...modifications: Array<RxRequestPipelineModificationFn<Input>>) =>
+  <Input = void>(...modifications: Array<RxRequestPipelineModifierFn<Input>>) =>
   (pipelineBase: RxRequestPipeline<Input>): RxRequestPipeline<Input> => {
     return modifications.reduce((pipeline, modifyPipeline) => modifyPipeline(pipeline), pipelineBase);
   };
 
 const getRequestPipeline = <Input = void, Response = unknown>(params: RxRequestParams<Input, Response>) => {
   const pipeline = pipe(
-    switchMap(({ input, injector }: RxRequestPipelineParams<Input>) => {
+    tap<RxRequestPipelineInput<Input>>(() => {
+      params.store?.setRequestStatus?.('Loading');
+    }),
+    switchMap(({ input, injector }: RxRequestPipelineInput<Input>) => {
       const request$ = from(runInInjectionContext(injector, () => params.requestFn(input)));
 
       return request$.pipe(
@@ -71,7 +78,6 @@ const getRequestPipeline = <Input = void, Response = unknown>(params: RxRequestP
         catchAppError((error) => {
           runInInjectionContext(injector, () => {
             handleErrorFor(input, error, {
-              ...params,
               store: EffectLoadingStore.injectAsOptional(),
               errorHandler: EffectErrorHandler.injectAsOptional(),
             });
@@ -87,14 +93,7 @@ const getRequestPipeline = <Input = void, Response = unknown>(params: RxRequestP
 };
 
 const getPipeline = <Input = void, Response = unknown>(params: RxRequestParams<Input, Response>) => {
-  const mainPipeline = pipe(
-    tap<RxRequestPipelineParams<Input>>(() => {
-      params.store?.setRequestStatus?.('Loading');
-    }),
-    getRequestPipeline(params)
-  );
-
-  return composePipeline(withFilter(params), withSingleInvocation(params))(mainPipeline);
+  return composePipeline(withFilter(params), withSingleInvocation(params))(getRequestPipeline(params));
 };
 
 export const rxRequest = <Input = void, Response = unknown>(params: RxRequestParams<Input, Response>) => {
