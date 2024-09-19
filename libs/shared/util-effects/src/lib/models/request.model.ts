@@ -10,14 +10,14 @@ export type RxRequestPipelineInput<Input> = {
   injector: Injector;
 };
 
-export type RxRequestPipeline<Input = void> = UnaryFunction<
+export type RxRequestPipeline<Input = void, Response = unknown> = UnaryFunction<
   Observable<RxRequestPipelineInput<Input>>,
-  Observable<unknown>
+  Observable<Response>
 >;
 
-export type RxRequestPipelineModifierFn<Input = void> = (
-  pipeline: RxRequestPipeline<Input>
-) => RxRequestPipeline<Input>;
+export type RxRequestPipelineModifierFn<Input = void, Response = unknown> = (
+  pipeline: RxRequestPipeline<Input, Response>
+) => RxRequestPipeline<Input, Response>;
 
 export interface RxRequestParams<Input = void, Response = unknown> {
   requestFn: (input: Input) => Observable<Response> | Promise<Response>;
@@ -28,8 +28,7 @@ export interface RxRequestParams<Input = void, Response = unknown> {
   onSuccess?: (response: Response, input: Input) => void;
   once?: boolean;
   before?: () => void;
-  retryCount?: number;
-  retryDelay?: number;
+  retry?: { count: number } & Partial<{ delay: number }>;
 }
 
 export interface FetchEntitiesParams<Entity, Input = void> extends RxRequestParams<Input, Entity[]> {
