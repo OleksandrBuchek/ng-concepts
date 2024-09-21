@@ -3,8 +3,8 @@ import { rxMethod } from '@ngrx/signals/rxjs-interop';
 import { AppError, catchAppError, handleError } from '@shared/util-error-handling';
 import { getValue } from '@shared/util-helpers';
 import { pipe, tap, switchMap, from, map } from 'rxjs';
-import { RxRequestParams, RxRequestPipeline, RxRequestPipelineInput } from '../../models';
-import { IsFinalRequest, RequestErrorHandler, RequestLoadingStore } from '../../providers';
+import { RxRequestOptions, RxRequestPipeline, RxRequestPipelineInput } from '../../models';
+import { IsFinalStep, RequestOptions } from '../../providers';
 import { ValueOrReactive } from '@shared/util-types';
 import { asObservable } from '@shared/util-rxjs-interop';
 import { HttpErrorResponse } from '@angular/common/http';
@@ -13,54 +13,49 @@ import { composePipeline, withFilter, withRetry, withSingleInvocation } from './
 const handleErrorFor = <Input = void, Response = unknown>(
   input: Input,
   error: AppError<HttpErrorResponse>,
-  params: Pick<RxRequestParams<Input, Response>, 'onError' | 'errorHandler' | 'store'>
+  options: Pick<RxRequestOptions<Input, Response>, 'onError' | 'errorHandler' | 'store'>
 ) => {
-  params.store?.setError?.(error);
-  params.onError?.(error, input);
-  handleError(error, getValue(params.errorHandler) ?? {});
-  params.store?.setRequestStatus?.('Failed');
+  options.store?.setError?.(error);
+  options.onError?.(error, input);
+  handleError(error, getValue(options.errorHandler) ?? {});
+  options.store?.setRequestStatus?.('Failed');
 };
 
 const handleSuccessFor = <Input = void, Response = unknown>(
   input: Input,
   response: Response,
-  params: Pick<RxRequestParams<Input, Response>, 'store' | 'onSuccess'>
+  options: Pick<RxRequestOptions<Input, Response>, 'store' | 'onSuccess'>
 ) => {
-  params.store?.setError?.(null);
-  params.onSuccess?.(response, input);
-  params.store?.setRequestStatus?.('Success');
+  options.store?.setError?.(null);
+  options.onSuccess?.(response, input);
+  options.store?.setRequestStatus?.('Success');
 };
 
 const getMainPipeline = <Input = void, Response = unknown>(
   requestPipeline: RxRequestPipeline<Input, Response>,
-  params: RxRequestParams<Input, Response>
+  options: RxRequestOptions<Input, Response>
 ) => {
   const pipeline = pipe(
     tap<RxRequestPipelineInput<Input>>(() => {
-      params.before?.();
-      params.store?.setRequestStatus?.('Loading');
+      options.before?.();
+      options.store?.setRequestStatus?.('Loading');
     }),
     switchMap(({ input, injector }: RxRequestPipelineInput<Input>) => {
       return requestPipeline(asObservable({ input, injector })).pipe(
         tap((response) => {
           runInInjectionContext(injector, () => {
-            handleSuccessFor(input, response, params);
+            handleSuccessFor(input, response, options);
 
-            if (IsFinalRequest.injectAsOptional()) {
-              handleSuccessFor(input, response, {
-                store: RequestLoadingStore.injectAsOptional(),
-              });
+            if (IsFinalStep.injectAsOptional()) {
+              handleSuccessFor(input, response, RequestOptions.injectAsOptional() ?? {});
             }
           });
         }),
         catchAppError((error) => {
           runInInjectionContext(injector, () => {
-            handleErrorFor(input, error, {
-              store: RequestLoadingStore.injectAsOptional(),
-              errorHandler: RequestErrorHandler.injectAsOptional(),
-            });
+            handleErrorFor(input, error, RequestOptions.injectAsOptional<RxRequestOptions<Input>>() ?? {});
 
-            handleErrorFor(input, error, params);
+            handleErrorFor(input, error, options);
           });
         })
       );
@@ -70,22 +65,22 @@ const getMainPipeline = <Input = void, Response = unknown>(
   return pipeline;
 };
 
-const getRxRequestPipeline = <Input = void, Response = unknown>(params: RxRequestParams<Input, Response>) => {
-  const composeMainPipeline = composePipeline(withFilter(params), withSingleInvocation(params));
+const getRxRequestPipeline = <Input = void, Response = unknown>(options: RxRequestOptions<Input, Response>) => {
+  const composeMainPipeline = composePipeline(withFilter(options), withSingleInvocation(options));
 
-  const composeRequestPipeline = composePipeline(withRetry(params));
+  const composeRequestPipeline = composePipeline(withRetry(options));
 
   const requestPipeline = composeRequestPipeline(
-    pipe(switchMap(({ injector, input }) => from(runInInjectionContext(injector, () => params.requestFn(input)))))
+    pipe(switchMap(({ injector, input }) => from(runInInjectionContext(injector, () => options.requestFn(input)))))
   );
 
-  return composeMainPipeline(getMainPipeline(requestPipeline, params));
+  return composeMainPipeline(getMainPipeline(requestPipeline, options));
 };
 
-export const rxRequest = <Input = void, Response = unknown>(params: RxRequestParams<Input, Response>) => {
+export const rxRequest = <Input = void, Response = unknown>(options: RxRequestOptions<Input, Response>) => {
   const outerInjector = inject(Injector);
 
-  const runPipeline = rxMethod(getRxRequestPipeline(params));
+  const runPipeline = rxMethod(getRxRequestPipeline(options));
 
   return (input: ValueOrReactive<Input>) => {
     const injector = inject(Injector, { optional: true }) ?? outerInjector;
@@ -95,4 +90,3 @@ export const rxRequest = <Input = void, Response = unknown>(params: RxRequestPar
     return runPipeline(pipelineInput$);
   };
 };
-

@@ -19,7 +19,7 @@ export type RxRequestPipelineModifierFn<Input = void, Response = unknown> = (
   pipeline: RxRequestPipeline<Input, Response>
 ) => RxRequestPipeline<Input, Response>;
 
-export interface RxRequestParams<Input = void, Response = unknown> {
+export interface RxRequestOptions<Input = void, Response = unknown> {
   requestFn: (input: Input) => Observable<Response> | Promise<Response>;
   store?: Partial<RequestStore> | null;
   errorHandler?: ValueOrFactory<Partial<HttpErrorHandlersMap>> | null;
@@ -31,8 +31,8 @@ export interface RxRequestParams<Input = void, Response = unknown> {
   retry?: { count: number } & Partial<{ delay: number }>;
 }
 
-export interface FetchEntitiesParams<Entity, Input = void> extends RxRequestParams<Input, Entity[]> {
-  store: RxRequestParams<Input, Entity[]>['store'] & {
+export interface FetchEntitiesOptions<Entity, Input = void> extends RxRequestOptions<Input, Entity[]> {
+  store: RxRequestOptions<Input, Entity[]>['store'] & {
     setAllEntities(collection: Entity[]): void;
   };
 }

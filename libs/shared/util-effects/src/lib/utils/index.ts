@@ -1,3 +1,3 @@
-export * from './effect.util';
+export * from './effect';
 export * from './action.util';
 export * from './request';

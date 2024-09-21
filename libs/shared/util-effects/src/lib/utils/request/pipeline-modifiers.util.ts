@@ -1,16 +1,16 @@
 import { pipe, take, filter, retry as retryOperator } from 'rxjs';
-import { RxRequestParams, RxRequestPipeline, RxRequestPipelineInput, RxRequestPipelineModifierFn } from '../../models';
+import { RxRequestOptions, RxRequestPipeline, RxRequestPipelineInput, RxRequestPipelineModifierFn } from '../../models';
 
 export const withSingleInvocation =
-  <Input = void, Response = unknown>(params: RxRequestParams<Input, Response>) =>
+  <Input = void, Response = unknown>(options: RxRequestOptions<Input, Response>) =>
   (pipeline: RxRequestPipeline<Input, Response>) => {
-    return params.once ? pipe(pipeline, take(1)) : pipeline;
+    return options.once ? pipe(pipeline, take(1)) : pipeline;
   };
 
 export const withFilter =
-  <Input = void, Response = unknown>(params: RxRequestParams<Input, Response>) =>
+  <Input = void, Response = unknown>(options: RxRequestOptions<Input, Response>) =>
   (pipeline: RxRequestPipeline<Input, Response>) => {
-    const shouldFetch = params.shouldFetch;
+    const shouldFetch = options.shouldFetch;
 
     return shouldFetch
       ? pipe(
@@ -21,9 +21,9 @@ export const withFilter =
   };
 
 export const withRetry =
-  <Input = void, Response = unknown>(params: RxRequestParams<Input, Response>) =>
+  <Input = void, Response = unknown>(options: RxRequestOptions<Input, Response>) =>
   (pipeline: RxRequestPipeline<Input, Response>) => {
-    const retry = params.retry;
+    const retry = options.retry;
 
     return retry
       ? pipe(

@@ -23,4 +23,3 @@ export const createAction = <Type extends string, PayloadFactory extends (...arg
   
     return action;
   };
-  

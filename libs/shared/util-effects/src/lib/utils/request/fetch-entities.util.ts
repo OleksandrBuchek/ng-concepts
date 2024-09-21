@@ -1,13 +1,12 @@
-import { FetchEntitiesParams } from "../../models";
-import { rxRequest } from "./request.util";
+import { FetchEntitiesOptions } from '../../models';
+import { rxRequest } from './request.util';
 
-export const fetchEntities = <Entity, Input = void>(params: FetchEntitiesParams<Entity, Input>) => {
-    return rxRequest<Input, Entity[]>({
-      ...params,
-      onSuccess: (response, input) => {
-        params.onSuccess?.(response, input);
-        params.store.setAllEntities(response);
-      },
-    });
-  };
-  
+export const fetchEntities = <Entity, Input = void>(options: FetchEntitiesOptions<Entity, Input>) => {
+  return rxRequest<Input, Entity[]>({
+    ...options,
+    onSuccess: (response, input) => {
+      options.onSuccess?.(response, input);
+      options.store.setAllEntities(response);
+    },
+  });
+};
