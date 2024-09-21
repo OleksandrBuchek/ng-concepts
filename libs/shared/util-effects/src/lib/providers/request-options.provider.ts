@@ -1,10 +1,8 @@
 import { createInjectionToken } from '@shared/util-di';
-import { RxRequestOptions } from '../models';
+import { ProvidableRxRequestOptions } from '../models';
 
-export const RequestOptions = createInjectionToken(
-  (options: Pick<RxRequestOptions<any, any>, 'errorHandler' | 'store' | 'onError' | 'onSuccess'>) => options
-);
+export const RequestOptions = createInjectionToken((options: ProvidableRxRequestOptions<any, any>) => options);
 
 export const provideRequestOptions = <Input = void, Response = unknown>(
-  options: Pick<RxRequestOptions<Input, Response>, 'errorHandler' | 'store' | 'onError' | 'onSuccess'>
+  options: ProvidableRxRequestOptions<Input, Response>
 ) => RequestOptions.provide(options);

@@ -36,3 +36,8 @@ export interface FetchEntitiesOptions<Entity, Input = void> extends RxRequestOpt
     setAllEntities(collection: Entity[]): void;
   };
 }
+
+export type ProvidableRxRequestOptions<Input = void, Response = unknown> = Pick<
+  RxRequestOptions<Input, Response>,
+  'errorHandler' | 'store' | 'onError' | 'onSuccess'
+>;
