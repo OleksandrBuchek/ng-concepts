@@ -33,16 +33,18 @@ const handleSuccessFor = <Input = void, Response = unknown>(
 };
 
 const getMainPipeline = <Input = void, Response = unknown>(
-  requestPipeline: RxRequestPipeline<Input, Response>,
+  performRequest: RxRequestPipeline<Input, Response>,
   options: RxRequestOptions<Input, Response>
 ) => {
   const pipeline = pipe(
-    tap<RxRequestPipelineInput<Input>>(() => {
-      options.before?.();
+    tap<RxRequestPipelineInput<Input>>(({ injector }) => {
+      runInInjectionContext(injector, () => {
+        options.before?.();
+      });
       options.store?.setRequestStatus?.('Loading');
     }),
     switchMap(({ input, injector }: RxRequestPipelineInput<Input>) => {
-      return requestPipeline(asObservable({ input, injector })).pipe(
+      return performRequest(asObservable({ input, injector })).pipe(
         tap((response) => {
           runInInjectionContext(injector, () => {
             handleSuccessFor(input, response, options);
