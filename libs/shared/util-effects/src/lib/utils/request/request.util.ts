@@ -4,11 +4,12 @@ import { AppError, catchAppError, handleError } from '@shared/util-error-handlin
 import { getValue } from '@shared/util-helpers';
 import { pipe, tap, switchMap, from, map } from 'rxjs';
 import { RxRequestOptions, RxRequestPipeline, RxRequestPipelineInput } from '../../models';
-import { IsFinalStep, RequestOptions } from '../../providers';
+import { IsFinalStep } from '../../providers';
 import { ValueOrReactive } from '@shared/util-types';
 import { asObservable } from '@shared/util-rxjs-interop';
 import { HttpErrorResponse } from '@angular/common/http';
 import { composePipeline, withFilter, withRetry, withSingleInvocation } from './pipeline-modifiers.util';
+import { injectRequestOptions } from '../injectors';
 
 const handleErrorFor = <Input = void, Response = unknown>(
   input: Input,
@@ -47,14 +48,13 @@ const getMainPipeline = <Input = void, Response = unknown>(
             handleSuccessFor(input, response, options);
 
             if (IsFinalStep.injectAsOptional()) {
-              handleSuccessFor(input, response, RequestOptions.injectAsOptional() ?? {});
+              handleSuccessFor(input, response, injectRequestOptions());
             }
           });
         }),
         catchAppError((error) => {
           runInInjectionContext(injector, () => {
-            handleErrorFor(input, error, RequestOptions.injectAsOptional<RxRequestOptions<Input>>() ?? {});
-
+            handleErrorFor(input, error, injectRequestOptions());
             handleErrorFor(input, error, options);
           });
         })
