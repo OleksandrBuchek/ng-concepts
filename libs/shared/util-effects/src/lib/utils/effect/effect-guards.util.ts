@@ -3,7 +3,7 @@ import { asObservable } from '@shared/util-rxjs-interop';
 import { ValueOrReactive } from '@shared/util-types';
 import { Observable, switchMap, from, concatMap, take, every, tap, filter, map } from 'rxjs';
 import { RxEffectOptions } from '../../models';
-import { onGuardReject } from './effect-hooks.util';
+import { onEffectGuardReject } from './effect-hooks.util';
 
 export const composeGuardChecks = <Payload>(injector: Injector, options: RxEffectOptions<Payload>) => {
   return (payload: Payload): Observable<boolean> =>
@@ -16,7 +16,7 @@ export const composeGuardChecks = <Payload>(injector: Injector, options: RxEffec
       ),
       tap((success) => {
         if (success === false) {
-          runInInjectionContext(injector, () => onGuardReject());
+          runInInjectionContext(injector, () => onEffectGuardReject());
         }
       }),
       filter((success) => success)

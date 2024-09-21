@@ -2,7 +2,7 @@ import { inject, Injector, runInInjectionContext } from '@angular/core';
 import { RxEffectOptions } from '../../models';
 import { ValueOrReactive } from '@shared/util-types';
 import { IsFinalStep } from '../../providers';
-import { onInit } from './effect-hooks.util';
+import { onEffectInit } from './effect-hooks.util';
 import { extractActionPayload } from './extract-action-payload.util';
 import { withGuardsCheck, composeGuardChecks } from './effect-guards.util';
 
@@ -37,7 +37,7 @@ export const rxEffect = <Payload>(options: RxEffectOptions<Payload>) => {
 
   return (payload: ValueOrReactive<Payload>): void => {
     runInInjectionContext(effectFnInjector, () => {
-      onInit();
+      onEffectInit();
       options.effectFn(ifGuardsAllow(payload));
     });
   };

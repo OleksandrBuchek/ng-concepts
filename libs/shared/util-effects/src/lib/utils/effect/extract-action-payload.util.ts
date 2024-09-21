@@ -2,7 +2,7 @@ import { Injector, runInInjectionContext } from '@angular/core';
 import { asObservable } from '@shared/util-rxjs-interop';
 import { merge, switchMap, tap } from 'rxjs';
 import { RxEffectOptions } from '../../models';
-import { onInit } from './effect-hooks.util';
+import { onEffectInit } from './effect-hooks.util';
 
 export const extractActionPayload = <Payload>(injector: Injector, options: RxEffectOptions<Payload>) => {
   const actionChanges$ = (options.actions ?? []).map(({ changes$ }) => changes$);
@@ -13,7 +13,7 @@ export const extractActionPayload = <Payload>(injector: Injector, options: RxEff
         asObservable(event.payload.factory(...event.payload.args)).pipe(
           tap(() => {
             runInInjectionContext(injector, () => {
-              onInit();
+              onEffectInit();
             });
           })
         )
