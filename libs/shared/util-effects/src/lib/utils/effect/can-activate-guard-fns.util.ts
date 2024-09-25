@@ -13,7 +13,7 @@ export const concat =
       every((value) => value)
     );
 
-const combineGuards =
+const combineGuardResults =
   (predicate: (results: boolean[]) => boolean) =>
   <Input = void>(...guardFns: Array<CanActivateGuardFn<Input>>) =>
   (input: Input, injector: Injector): Observable<boolean> =>
@@ -23,5 +23,5 @@ const combineGuards =
       )
     ).pipe(map((values) => predicate(values)));
 
-export const all = combineGuards((values) => values.every((value) => value));
-export const some = combineGuards((values) => values.some((value) => value));
+export const all = combineGuardResults((values) => values.every((value) => value));
+export const some = combineGuardResults((values) => values.some((value) => value));
