@@ -1,10 +1,12 @@
 import { inject, Injector, runInInjectionContext } from '@angular/core';
-import { RxEffectOptions } from '../../models';
+import { RxEffectOptions, RxInjectablePipelineInput } from '../../models';
 import { ValueOrReactive } from '@shared/util-types';
 import { IsFinalStep } from '../../providers';
-import { onEffectInit } from './effect-hooks.util';
 import { extractActionPayload } from './extract-action-payload.util';
-import { withGuardsCheck, composeGuardChecks } from './effect-guards.util';
+import { createInternalAction } from '../action.util';
+import { composePipeline, withFilterAsync, withInjector } from '../shared';
+import { onGuardReject } from './effect-hooks.util';
+import { map, Observable } from 'rxjs';
 
 const getInjector = <Payload>(options: RxEffectOptions<Payload>): Injector => {
   const parentInjector = inject(Injector);
@@ -22,23 +24,45 @@ const getEffectFnInjector = (parent: Injector): Injector => {
   });
 };
 
-export const rxEffect = <Payload>(options: RxEffectOptions<Payload>) => {
-  const injector = getInjector(options);
+const getEffectFnInput = <Input = void>(
+  input$: Observable<Input>,
+  injector: Injector,
+  options: RxEffectOptions<Input>
+): Observable<Input> => {
+  const inputWithInjector$ = withInjector(input$, injector);
 
-  const actionPayload$ = extractActionPayload(injector, options);
+  const pipe = composePipeline<Input, RxInjectablePipelineInput<Input>>(
+    withFilterAsync(options.canActivate, onGuardReject)
+  )();
 
-  const ifGuardsAllow = withGuardsCheck(composeGuardChecks(injector, options));
+  return pipe(inputWithInjector$).pipe(map(({ input }) => input));
+};
 
-  const effectFnInjector = getEffectFnInjector(injector);
+const getActions = <Input>(options: RxEffectOptions<Input>, injector: Injector) => {
+  const internalAction = createInternalAction((input: ValueOrReactive<Input>) => input);
 
-  runInInjectionContext(effectFnInjector, () => {
-    options.effectFn(ifGuardsAllow(actionPayload$));
+  const actionPayload$ = extractActionPayload(injector, {
+    ...options,
+    actions: [...(options.actions ?? []), internalAction],
   });
 
-  return (payload: ValueOrReactive<Payload>): void => {
-    runInInjectionContext(effectFnInjector, () => {
-      onEffectInit();
-      options.effectFn(ifGuardsAllow(payload));
-    });
+  return {
+    dispatch: internalAction,
+    actionPayload$,
+  };
+};
+
+export const rxEffect = <Input>(options: RxEffectOptions<Input>) => {
+  const injector = getInjector(options);
+  const actions = getActions(options, injector);
+
+  const input$ = getEffectFnInput(actions.actionPayload$, injector, options);
+
+  runInInjectionContext(getEffectFnInjector(injector), () => {
+    options.effectFn(input$);
+  });
+
+  return (payload: ValueOrReactive<Input>): void => {
+    actions.dispatch(payload);
   };
 };

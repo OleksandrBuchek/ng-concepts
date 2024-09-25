@@ -2,14 +2,14 @@ import { Injector, inject, runInInjectionContext } from '@angular/core';
 import { rxMethod } from '@ngrx/signals/rxjs-interop';
 import { AppError, catchAppError, handleError } from '@shared/util-error-handling';
 import { getValue } from '@shared/util-helpers';
-import { pipe, tap, switchMap, from, map } from 'rxjs';
-import { RxRequestOptions, RxRequestPipeline, RxRequestPipelineInput } from '../../models';
+import { pipe, tap, switchMap, from } from 'rxjs';
+import { RxRequestOptions, RxInjectablePipeline, RxInjectablePipelineInput } from '../../models';
 import { IsFinalStep } from '../../providers';
 import { ValueOrReactive } from '@shared/util-types';
 import { asObservable } from '@shared/util-rxjs-interop';
 import { HttpErrorResponse } from '@angular/common/http';
-import { composePipeline, withFilter, withRetry, withSingleInvocation } from './pipeline-modifiers.util';
 import { injectRequestOptions } from '../injectors';
+import { composePipeline, withFilterAsync, withInjector, withRetry, withSingleInvocation } from '../shared';
 
 const handleErrorFor = <Input = void, Response = unknown>(
   input: Input,
@@ -33,17 +33,17 @@ const handleSuccessFor = <Input = void, Response = unknown>(
 };
 
 const getMainPipeline = <Input = void, Response = unknown>(
-  performRequest: RxRequestPipeline<Input, Response>,
+  performRequest: RxInjectablePipeline<Input, Response>,
   options: RxRequestOptions<Input, Response>
 ) => {
   const pipeline = pipe(
-    tap<RxRequestPipelineInput<Input>>(({ injector }) => {
+    tap<RxInjectablePipelineInput<Input>>(({ injector }) => {
       runInInjectionContext(injector, () => {
         options.before?.();
       });
       options.store?.setRequestStatus?.('Loading');
     }),
-    switchMap(({ input, injector }: RxRequestPipelineInput<Input>) => {
+    switchMap(({ input, injector }: RxInjectablePipelineInput<Input>) => {
       return performRequest(asObservable({ input, injector })).pipe(
         tap((response) => {
           runInInjectionContext(injector, () => {
@@ -68,7 +68,10 @@ const getMainPipeline = <Input = void, Response = unknown>(
 };
 
 const getRxRequestPipeline = <Input = void, Response = unknown>(options: RxRequestOptions<Input, Response>) => {
-  const composeMainPipeline = composePipeline(withFilter(options), withSingleInvocation(options));
+  const composeMainPipeline = composePipeline<Input, Response>(
+    withFilterAsync(options.canActivate),
+    withSingleInvocation(options)
+  );
 
   const composeRequestPipeline = composePipeline(withRetry(options));
 
@@ -87,8 +90,6 @@ export const rxRequest = <Input = void, Response = unknown>(options: RxRequestOp
   return (input: ValueOrReactive<Input>) => {
     const injector = inject(Injector, { optional: true }) ?? outerInjector;
 
-    const pipelineInput$ = asObservable(input).pipe(map((input) => ({ input, injector })));
-
-    return runPipeline(pipelineInput$);
+    return runPipeline(withInjector(input, injector));
   };
 };

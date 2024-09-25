@@ -1,6 +1,6 @@
 import { RequestOptions } from '../../providers';
 
-export const onEffectGuardReject = (): void => {
+export const onGuardReject = (): void => {
   RequestOptions.injectAsOptional()?.store?.setRequestStatus?.('Idle');
 };
 

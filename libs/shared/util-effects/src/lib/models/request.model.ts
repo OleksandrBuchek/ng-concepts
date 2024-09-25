@@ -1,29 +1,25 @@
 import { HttpErrorResponse } from '@angular/common/http';
-import { Injector } from '@angular/core';
 import { AppError, HttpErrorHandlersMap } from '@shared/util-error-handling';
 import { ValueOrFactory } from '@shared/util-types';
-import { Observable, UnaryFunction } from 'rxjs';
+import { Observable, OperatorFunction } from 'rxjs';
 import { RequestStore } from './effect-store.model';
+import { RxInjectablePipelineInput } from './method-pipeline-input.model';
+import { CanActivateGuardFn } from './can-activate-guard-fn.model';
 
-export type RxRequestPipelineInput<Input> = {
-  input: Input;
-  injector: Injector;
-};
-
-export type RxRequestPipeline<Input = void, Response = unknown> = UnaryFunction<
-  Observable<RxRequestPipelineInput<Input>>,
-  Observable<Response>
+export type RxInjectablePipeline<Input = void, Response = unknown> = OperatorFunction<
+  RxInjectablePipelineInput<Input>,
+  Response
 >;
 
-export type RxRequestPipelineModifierFn<Input = void, Response = unknown> = (
-  pipeline: RxRequestPipeline<Input, Response>
-) => RxRequestPipeline<Input, Response>;
+export type RxInjectablePipelineModifierFn<Input = void, Response = unknown> = (
+  pipeline: RxInjectablePipeline<Input, Response>
+) => RxInjectablePipeline<Input, Response>;
 
 export interface RxRequestOptions<Input = void, Response = unknown> {
   requestFn: (input: Input) => Observable<Response> | Promise<Response>;
   store?: Partial<RequestStore> | null;
   errorHandler?: ValueOrFactory<Partial<HttpErrorHandlersMap>> | null;
-  shouldFetch?: (input: Input) => boolean;
+  canActivate?: CanActivateGuardFn<Input>;
   onError?: (error: AppError<HttpErrorResponse>, input: Input) => void;
   onSuccess?: (response: Response, input: Input) => void;
   once?: boolean;
