@@ -1,5 +1,5 @@
 import { inject, Injector, runInInjectionContext } from '@angular/core';
-import { RxEffectOptions, RxInjectablePipelineInput } from '../../models';
+import { RxEffectOptions, RxInjectablePipeline, RxInjectablePipelineInput } from '../../models';
 import { ValueOrReactive } from '@shared/util-types';
 import { IsFinalStep } from '../../providers';
 import { extractActionPayload } from './extract-action-payload.util';
@@ -24,18 +24,12 @@ const getEffectFnInjector = (parent: Injector): Injector => {
   });
 };
 
-const getEffectFnInput = <Input = void>(
-  input$: Observable<Input>,
-  injector: Injector,
+const getRxEffectPipeline = <Input = void>(
   options: RxEffectOptions<Input>
-): Observable<Input> => {
-  const inputWithInjector$ = withInjector(input$, injector);
-
-  const pipe = composePipeline<Input, RxInjectablePipelineInput<Input>>(
+): RxInjectablePipeline<Input, RxInjectablePipelineInput<Input>> => {
+  return composePipeline<Input, RxInjectablePipelineInput<Input>>(
     withFilterAsync(options.canActivate, onGuardReject)
   )();
-
-  return pipe(inputWithInjector$).pipe(map(({ input }) => input));
 };
 
 const getActions = <Input>(options: RxEffectOptions<Input>, injector: Injector) => {
@@ -52,14 +46,20 @@ const getActions = <Input>(options: RxEffectOptions<Input>, injector: Injector) 
   };
 };
 
+const extractInput = <Input>(input$: Observable<RxInjectablePipelineInput<Input>>): Observable<Input> => {
+  return input$.pipe(map(({ input }) => input));
+};
+
 export const rxEffect = <Input>(options: RxEffectOptions<Input>) => {
   const injector = getInjector(options);
   const actions = getActions(options, injector);
 
-  const input$ = getEffectFnInput(actions.actionPayload$, injector, options);
+  const effectPipeline = getRxEffectPipeline(options);
+
+  const inputWithInjector$ = withInjector(actions.actionPayload$, injector);
 
   runInInjectionContext(getEffectFnInjector(injector), () => {
-    options.effectFn(input$);
+    options.effectFn(extractInput(effectPipeline(inputWithInjector$)));
   });
 
   return (payload: ValueOrReactive<Input>): void => {
