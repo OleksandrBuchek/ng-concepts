@@ -10,6 +10,7 @@ import { asObservable } from '@shared/util-rxjs-interop';
 import { HttpErrorResponse } from '@angular/common/http';
 import { injectRequestOptions } from '../injectors';
 import { composePipeline, withFilterAsync, withInjector, withRetry, withSingleInvocation } from '../shared';
+import { tryCatch } from '@shared/util-try-catch';
 
 const handleErrorFor = <Input = void, Response = unknown>(
   input: Input,
@@ -88,7 +89,7 @@ export const rxRequest = <Input = void, Response = unknown>(options: RxRequestOp
   const runPipeline = rxMethod(getRxRequestPipeline(options));
 
   return (input: ValueOrReactive<Input>) => {
-    const injector = inject(Injector, { optional: true }) ?? outerInjector;
+    const injector = tryCatch(() => inject(Injector, { optional: true }), outerInjector) ?? outerInjector;
 
     return runPipeline(withInjector(input, injector));
   };
