@@ -352,10 +352,202 @@ export class CheckoutEffects {
 }
 ```
 
-However, we are still bound to the injection context, meaning we need to invoke factory functions like `withConfirmationDialogFactory` at the constructor phase each time to take advantage of the `inject` function. While this approach allows us to encapsulate some reusable logic, the need to always initiate a function like this can make the approach feel somewhat awkward. Instead of directly using the injected dependencies, we must rely on invoking these factory functions first, which adds an extra layer of indirection. This additional step can make the code feel more cumbersome. Although it provides more flexibility and composability, the manual invocation of these functions introduces a bit of friction into the process.
+However, we are still bound to the construction(class's fields initiation) injection context, meaning that we always need to invoke factory functions like `withConfirmationDialogFactory` ahead of time while initialize class fields or in a constructor of a class to take advantage of the `inject` function and project dependencies. While this approach allows us to encapsulate some reusable logic, this limitation leads to boilerplate code. Instead of directly using the injected dependencies, we must rely on invoking these factory functions first, which adds an extra layer of indirection. This additional step makes the code feel more cumbersome. 
 
-## Let me introduce you the game changer - `runInInjectionContext`
+## `runInInjectionContext` - No more barriers
 
-The `runInInjectionContext` helper function in Angular empowers execution within a specified injection context, permitting the use of Angular's Dependency Injection (DI) system without being confined to any particular component or injectable class. 
+The main barrier to adopting a fully composable approach for side effects has been the need to inject dependencies `statically`. The `runInInjectionContext` function, initially introduced in Angular 14, changes that by allowing you to compose functions more naturally, using dependencies at runtime when they are required. This enables cleaner, more modular logic, where side effects can be composed together without tightly coupling them to specific classes or constructors:
 
-Such an approach fosters the creation of standalone features that dynamically leverage DI during execution, enhancing both modularity and flexibility.
+```ts
+
+const withConfirmationDialog = <T, D>(component: T, data?: D) => {
+    const dialog = inject(MatDialogRef);
+
+    return dialog.open<T, D>(component, { data }).afterClosed().pipe(
+        defaultIfEmpty(false),
+        map((isConfirmed) => isConfirmed),
+        take(1)
+    );
+}
+
+
+export class CheckoutEffects {
+    private injector = inject(Injector);
+
+    public readonly isCheckoutComfirmed = pipe(
+        switchMap((checkoutPayload) => runInInjectionContext(this.injector, withConfirmationDialog(MyDialog)).pipe(
+            tap((isConfirmed) => {
+                if (checkoutConfirmed(checkoutPayload)) {
+                    this.checkout();
+                } else {
+                    this.repo.checkout.setLoadingState('Idle');
+                }
+            ),
+        )
+    )
+}
+```
+
+At first glance, the overhead of injecting the `Injector` and repeatedly calling `runInInjectionContext` might appear to increase complexity and clutter the codebase. However, by abstracting this logic into helper functions, we can completely remove manual injection logic, allowing developers to focus on composing business logic rather than managing dependency injection.
+
+This is where the true power of `runInInjectionContext` comes into play: once we have a well-structured abstraction layer, we can manage the injection context seamlessly. It's time to demonstrate how to leverage these abstractions and the incredible benefits they bring to side effect management.
+
+
+### Prerquisites
+
+Before we start it is important to define which solution are we going to use for our state managemnt in our code snippets. It is not a coinicance that a good part of our article was dedicated to state management. We have discovered that the holy grail to a good statemengemtn is by using fucntional mixins, an approach implemented by NgRx Signal store. So, we will use it to demonstrate how it can greatly be combined with composable side effects managemnet that we are going to talk about futher.
+
+As a first step, let's build a couple of reusable feature stores needed for a request, like request status, error propagation and loading state:
+
+1. Request status
+
+```ts
+export type RequestStatus = 'Idle' | 'Loading' | 'Success' | 'Failed';
+
+export function withRequestStatus() {
+  return signalStoreFeature(
+    withState<{ requestStatus: RequestStatus }>({ requestStatus: 'Idle' }),
+    withMethods((store) => ({
+      setRequestStatus(requestStatus: RequestStatus): void {
+        patchState(store, { requestStatus });
+      },
+    })),
+    withComputed((store) => ({
+      isLoading: computed(() => store.requestStatus() === 'Loading'),
+      isLoaded: computed(() => store.requestStatus() === 'Success'),
+      isFailed: computed(() => store.requestStatus() === 'Failed'),
+      isIdle: computed(() => store.requestStatus() === 'Idle'),
+    })),
+  );
+}
+```
+
+2. Error
+
+```ts
+export function withError<TError = HttpErrorResponse>() {
+  return signalStoreFeature(
+    withState<{ error: AppError<TError> | null }>({ error: null }),
+    withMethods((store) => ({
+      setError(error: AppError<TError> | null) {
+        patchState(store, { error });
+      },
+    })),
+  );
+}
+```
+
+3. Loading state
+
+```ts
+const getLoadingState = (store: GetLoadingStateParams): Signal<LoadingState> =>
+  computed(() => {
+    const error = store.error();
+    const status = store.requestStatus();
+
+    const result = status === 'Success' 
+        ? { status } 
+        : status === 'Failed' 
+        ? { status, error } 
+        : { status };
+
+    return result as LoadingState;
+  });
+
+
+export const withLoadingState = <_>() => {
+  return signalStoreFeature(
+    {
+      state: type<{
+        error: AppError<HttpErrorResponse> | null;
+        requestStatus: RequestStatus;
+      }>(),
+    },
+    withComputed((store) => ({
+      loadingState: getLoadingState(store),
+    })),
+  );
+};
+```
+
+Then let's compose it into a more complex feature store called `callState`:
+
+```ts
+export const withCallState = () => {
+  return signalStoreFeature(withRequestStatus(), withError(), withLoadingState());
+};
+
+export const callStateStore = () => createInstance(signalStore(withCallState()));
+```
+
+Since the result of the `signalStore` is class, to avoid using the `new` keyword we will use the `createInstance` helper function to remove depencenies on clasess in our codebase:
+
+```ts
+export const createInstance = <TValue>(storeFactory: new () => TValue): TValue => new storeFactory();
+```
+
+### Let's see this in action
+
+As we already stated, dynamic context binding with `runInInjectionContext` truly shines when proper abstractions are created. 
+Let's create one of these needed to handle a request and encapsulate the injection orchestration under the hood. We will call this helper function `rxRequest`, as an analogy to `rxMethod` from NgRx:
+
+```ts
+
+export interface RequestStore {
+  setError(error: AppError<HttpErrorResponse> | null): void;
+  setRequestStatus(status: RequestStatus): void;
+}
+
+export interface RxRequestOptions<Input = void, Response = unknown> {
+  requestFn: (input: Input) => Observable<Response> | Promise<Response>;
+  store?: Partial<RequestStore> | null;
+  //... Other options
+}
+
+export type ValueOrReactive<TValue> =
+  | TValue
+  | Observable<TValue>
+  | Signal<TValue>;
+
+export const withInjector = <Input = void>(input: ValueOrReactive<Input>, injector: Injector) =>
+  asObservable(input).pipe(map((input) => ({ input, injector })));
+
+export const rxRequest = <Input = void, Response = unknown>(options: RxRequestOptions<Input, Response>) => {
+  const injector = inject(Injector);
+
+  const runPipeline = rxMethod(getRxRequestPipeline(options));
+
+  return (input: ValueOrReactive<Input>) => {
+    return runPipeline(withInjector(input, injector));
+  };
+};
+
+```
+
+Let's break down what is happening here. First, we are definning an interface for the options we are going to accept as a paramter for our helper function. We have omited some of the proeprties for now to not distract attention from the initial main idea. Here were saying that we expect the `requestFn` fucntion as the the mandatory property which is jsut a function that takes an input arguemnt of type `Input` as a paratmeter and retirn eitehr an obserable or apromise of type `Response`. Then, alternatively, we accpet an option property called `store` of type RequestStore. If we take a look, this interface extrmely agnostic since it doesn't force use to use any conrecte store implementation, but just expect a simple object with some methods to set a request status and to set an error, that's it. This is a simple bu a good example where separtion of concerns is a great soluton and we don't create a high coupling between state manegement and side effects.
+
+Then, the helper function, when inkapusalted, incapusaltes the injection of the `Injector`, We are then taking advantage of the `rxMethod` function from the NgrX library to pass an rxjs pipeline composed based on the properties defined in out options paramter(we will take about it later). Then, we are turning an inner function that expects an input, that can be represented as a value or any reactive variation: obserable or a signal. Inside of the inner function, we are inkoving the function return by rxMethod and passing an input that is combined the actua linput and the injector. The reason why we passing an injector as an obserable value will be cleard up slighly later.
+
+Now, when we have eveything in place, let's use this in action:
+
+Our repository class:
+```ts
+export class CheckoutRepository {
+    public readonly checkoutCallStore = callStateStore();
+}
+```
+
+Our effects class:
+```ts
+export class CheckoutEffects {
+    private readonly repo = inject(CheckoutRepository);
+
+    public readonly checkout = rxRequest<CheckoutPayload>({
+        requestFn: (payload) => inject(CheckoutApi).checkout(payload),
+        store: this.repo.checkoutCallStore
+    });
+}
+```
+
+
+That's it, as simple as the
