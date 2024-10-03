@@ -1,4 +1,4 @@
-# Composable Functional Side Effects With Zero Boilerplate
+# Composable Side Effects With Zero Boilerplate
 
 Side effects and state management are central concepts in frontend development, shaping how modern applications interact with the outside world and manage internal data flow. Effective management of these is crucial because they enable the application to perform meaningful work—side effects allow an application to "do" things, while state ensures that these actions are consistently reflected across the user interface. Over the years, the strategies for managing both state and side effects have evolved alongside the increasing complexity of modern web applications.
 
@@ -114,9 +114,9 @@ Both event-driven and class-based approaches share a fundamental flaw: they focu
 
 The reason why both appoaches fail to be more `composable` is simple:
 
-1. Composition is inherently more difficult with classes. Class-based inheritance is rigid and simply unsuitable when we need to combine various types of functionality, such as managing a table store, loading store, filter store, and entities store, all within the same page.
+- Composition is inherently more difficult with classes. Class-based inheritance is rigid and simply unsuitable when we need to combine various types of functionality, such as managing a table store, loading store, filter store, and entities store, all within the same page.
 
-2. The event-driven appraoch, with its heavy focus on flow of events, as it may sound contradictory since it was the main issue this aporahc was tryng to solve, creates tight coupling and dependencies, but not between componentes and services but between actions and a conrecte reducer, making it harder to reuse and compose logic across different parts of the application.
+- The event-driven appraoch, with its heavy focus on flow of events, as it may sound contradictory since it was the main issue this aporahc was tryng to solve, creates tight coupling and dependencies, but not between componentes and services but between actions and a conrecte reducer, making it harder to reuse and compose logic across different parts of the application.
 
 ### The State Management Renessaince With Functional Mixins
 
@@ -126,7 +126,14 @@ The real breakthrough came with the introduction of the Elf.js library. By movin
 import { createStore, withProps, withEntities } from '@ngneat/elf';
 
 class TodoRepostory {
-  private readonly store = createStore({ name: 'todo' }, withProps<{ total: number }>({ total: 0 }), withEntities<Todo>({ idKey: 'id' }), withRequestsStatus(initializeAsPending('todos')), withTableStore(), withFiltersStore());
+  private readonly store = createStore(
+    { name: 'todo' }, 
+    withProps<{ total: number }>({ total: 0 }), 
+    withEntities<Todo>({ idKey: 'id' }), 
+    withRequestsStatus(initializeAsPending('todos')), 
+    withTableStore(), 
+    withFiltersStore()
+ );
 }
 ```
 
@@ -137,7 +144,22 @@ This flexibility gave developers the power of JavaScript’s native features, su
 After the introduction of signals, there have been, and continue to be, many discussions around their best practices, whether they can completely replace observables, and how they fit into the larger ecosystem. However, it is safe to say that the general consensus is that signals are an ideal solution for state management. Signals offer a simpler and more intuitive approach for managing reactive state in many scenarios, making them a powerful tool in modern Angular applications. By leveraging functional composition and the reactivity of signals, developers can build highly modular, scalable, and dynamic stores, eliminating much of the boilerplate while keeping the core logic clean and reusable. Therefore, it's incredibly exciting that modern libraries implementing signal stores like `NgRx Signal Store` are based on the concept of functional mixins:
 
 ```ts
-signalStore(withEntities<Todo>(), withRequestStatus(), withTableStore(), withFiltersStore());
+const todoStore = new signalStore(
+    withEntities<Todo>({ selectId: (entity: Todo) => entity.id }), 
+    withRequestStatus(), 
+    withTableStore(), 
+    withFiltersStore(),
+    withMethods((store) => ({...})),
+    withComputed((store) => ({...}))
+);
+
+todoStore.setRequestStatus('Loading');
+todoStore.setFilter(...);
+todoStore.setEntity(todo);
+todoStore.nextPage();
+todoStore.previousPage();
+
+
 ```
 
 ### Alright, But What About Side Effects ?
@@ -277,16 +299,63 @@ export class CheckoutEffects {
     public checkoutFailure = createEffect(() => ...);
     public checkLimitFailed = createEffect(() => ...);
 ));
-
-
 ```
 
-- Concurrency and Race Conditions: Managing multiple asynchronous operations can result in race conditions, where the order of execution affects the final outcome. For example, two simultaneous API requests might cause issues if their results are processed in the wrong order.
+Even though we've reduced the need for excessive action dispatching by adopting function-based effects, the overall complexity hasn't significantly improved. What we see now is a set of tightly coupled, interdependent methods where one function's success or failure directly drives the next step in the flow. This shift has introduced new challenges, particularly in managing loading states. In the event-driven approach, we also need to manage the loading state, but this logic is typically handled separately in the reducer, which reduces boilerplate within the effects themselves. Now, these aspects need to be orchestrated manually throughout the chain of effects. Each effect is responsible for explicitly setting the loading state at different stages (Loading, Idle, Success, Failed), adding to the cognitive load and the potential for mistakes, making the code harder to manage, extend, and maintain. We could have created one large RxJS stream instead of multiple effect functions to represent a single flow, but it wouldn’t reduce the complexity or simplify orchestration.
 
-- Error Handling: Handling errors in asynchronous side effects can be tricky, especially when multiple side effects depend on each other. Properly managing retries, fallbacks, and error propagation is critical but challenging.
+The same issue arises with error management: each step requires its own custom error handling logic, along with potentially invoking a shared error handler for the entire end-to-end process. This not only adds complexity but also makes the flow harder to maintain and reason about. 
 
-Difficulty in Maintaining Declarative Code: In reactive programming (e.g., using RxJS), side effects are often managed in a declarative manner. However, some operations might require imperative logic, and balancing the two approaches while maintaining readability and testability can be difficult.
+There are practices that involve partially extracting error handling into interceptors, especially for handling generic errors like 500 responses, or providing a shared error handler at the module or component level. While these approaches help reduce boilerplate, they come at the cost of flexibility and customization. What happens if we need to override the existing behavior or customize the error message for a specific effect? These scenarios become difficult to handle, leaving us with rigid error management structures that are hard to adapt.
 
-That are the challanges developers are facing evey time they have a deal with effects?
+- `Effects Are Not Well Composable`
 
-The introduction of function effects made things slighly easiler since wew don't need to rely on actions
+No matter which approach we use—whether event-driven or function-based—the problem remains that composing and reusing side effects is extremely difficult. This is the root cause of the challenges in orchestrating dependent flows, as well as handling lazy-loading, error management, and other complexities mentioned earlier. Instead of having modular, reusable units of logic, side effects are often tightly coupled to specific actions or flows, making it challenging to compose or reuse them across different parts of the application. This lack of composability forces developers to duplicate code rather than create flexible, reusable effects that can be combined to handle more complex scenarios. As a result, the system becomes rigid, reducing maintainability and scalability over time.
+
+
+### The main pitfall to composable effects
+
+If we look back and rethink the history of state management—the mistakes we've made—it becomes clear that nothing has prevented us from using the functional mixins approach since the early days of Angular 2. Whether we are using modules or standalone components, injecting dependencies via constructors or with the `inject` function, plain JavaScript objects, functions, and the spread operator have always been available in our toolkit. Even without signals, `BehaviorSubjects` were always at our disposal, offering a powerful way to manage state reactively and handle streams of data over time.
+
+However, things become more complex when dealing with side effects. The main challenge in adopting functional composition for side effects is that effects almost always require dependencies to be injected, such as a dialog service to open a dialog, an API service to send requests, or a notification service to log errors. This need for dependencies makes it extremely difficult to achieve functional composition, as dependency injection is a core part of the effect's behavior.
+
+For a long time, we were restricted and tied to using constructors in components or injectable classes. This limitation made any attempt to make effects more composable with functions not worth the effort, as we would constantly need to manually project dependencies. While some logic could be extracted into dedicated classes for reuse, as mentioned earlier, composing logic with classes is more rigid and far less flexible.
+
+The introduction of the `inject` function has made this process more feasible. Now, we can encapsulate certain logic into reusable functions for our effects. For example, we can create something like this:
+
+```ts
+
+const withConfirmationDialogFactory = () => {
+    const dialog = inject(MatDialogRef);
+
+    return <T, D>(component: T, data?: D) => dialog.open<T, D>(component, { data }).afterClosed().pipe(
+        defaultIfEmpty(false),
+        map((isConfirmed) => isConfirmed),
+        take(1)
+    );
+}
+
+
+export class CheckoutEffects {
+    private withConfirmationDialog = withConfirmationDialogFactory();
+
+    public readonly isCheckoutComfirmed = pipe(
+        switchMap((checkoutPayload) => this.withConfirmationDialog(MyDialog).pipe(
+            tap((isConfirmed) => {
+                if (checkoutConfirmed(checkoutPayload)) {
+                    this.checkout();
+                } else {
+                    this.repo.checkout.setLoadingState('Idle');
+                }
+            ),
+        )
+    )
+}
+```
+
+However, we are still bound to the injection context, meaning we need to invoke factory functions like `withConfirmationDialogFactory` at the constructor phase each time to take advantage of the `inject` function. While this approach allows us to encapsulate some reusable logic, the need to always initiate a function like this can make the approach feel somewhat awkward. Instead of directly using the injected dependencies, we must rely on invoking these factory functions first, which adds an extra layer of indirection. This additional step can make the code feel more cumbersome. Although it provides more flexibility and composability, the manual invocation of these functions introduces a bit of friction into the process.
+
+## Let me introduce you the game changer - `runInInjectionContext`
+
+The `runInInjectionContext` helper function in Angular empowers execution within a specified injection context, permitting the use of Angular's Dependency Injection (DI) system without being confined to any particular component or injectable class. 
+
+Such an approach fosters the creation of standalone features that dynamically leverage DI during execution, enhancing both modularity and flexibility.
