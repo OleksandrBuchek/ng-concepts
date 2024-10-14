@@ -19,27 +19,27 @@ In the early days of web development with Angular, state management and side eff
 ```ts
 @Injectable({ providedIn: 'root' })
 export class TodoService {
-    constructor(private http: HttpClient) {}
+  constructor(private http: HttpClient) {}
 
-    public hasError$: Subject<boolean>;
-    public isLoading$: Subject<boolean>;
+  public hasError$: Subject<boolean>;
+  public isLoading$: Subject<boolean>;
 
-    public getTodos(): Observable<Todo[]> {
-        this.isLoading.next(true);
-        return this.http.get<Todo[]>('https://api.example.com/todos').pipe(
-            catchError((error: Error) => {
-                this.handleError(error);
-                this.isLoading$.next(false);
-            }),
-            tap(() => {
-                this.isLoading$.next(false);
-            })
-        );
-    }
+  public getTodos(): Observable<Todo[]> {
+    this.isLoading.next(true);
+    return this.http.get<Todo[]>('https://api.example.com/todos').pipe(
+      catchError((error: Error) => {
+        this.handleError(error);
+        this.isLoading$.next(false);
+      }),
+      tap(() => {
+        this.isLoading$.next(false);
+      })
+    );
+  }
 
-    private handleError(error: Error): void {
-        //Error handling
-    }
+  private handleError(error: Error): void {
+    //Error handling
+  }
 }
 ```
 
@@ -488,6 +488,7 @@ export const rxRequest = <Input = void, Response = unknown>(options: RxRequestOp
   };
 };
 ```
+
 First, we define the RequestStore interface and the RxRequestOptions interface for the options our helper function will accept. We expect requestFn as a required option—this is a function that takes an Input, performs the request and returns either an Observable or a Promise of type Response.
 
 Additionally, we accept an optional store property of type RequestStore. This interface is highly flexible and doesn't enforce any concrete state management implementation. It only requires a simple object with methods for setting the request status and error, keeping separation of concerns intact. This reduces coupling between state management and side effects, allowing for clean, maintainable code.
@@ -551,9 +552,9 @@ const getPipeline = <Input = void, Response = unknown>(
             return performRequestPipeline(({ input, injector })).pipe(
                 tap((response) => {
                     options.store?.setRequestStatus?.('Success');
-                    options.store?.setError?.(null);   
+                    options.store?.setError?.(null);
 
-                    runInInjectionContext(injector, () => {                        
+                    runInInjectionContext(injector, () => {
                         options.onSuccess?.(response);
                     });
                 }),
@@ -581,3 +582,231 @@ The `getPipeline` function returns a reusable pipeline to handle tht request lif
 You might be wondering, why couldn't we just pass an injector as paramter of the `getPipeline` and not pass it as rxjs stream input. To answer to that question, let's dive into more advanced scenarios to show you the full power of what can be done with dunamic injection context.
 
 ### Depdepndent effects orchstration made easy
+
+Let's comeback and refactor our initial example with interdependent effects where we checking the account balance limit and and requiring a user to comfirm the checkout in a dialog window.
+
+Let's first create a couple of reusable helper functions that can abstract some logic related to opening a dialog and sedning a request that will return a bollean indicating if the main effect can take place.
+
+First, let's start with dialogs:
+
+```ts
+const withConfirmationDialog = <T, D>(component: T, data?: D) => {
+  const dialog = inject(MatDialogRef);
+
+  return () => {
+    return dialog
+      .open<T, D, boolean>(component, { data })
+      .afterClosed()
+      .pipe(
+        defaultIfEmpty(false),
+        map((isConfirmed) => Boolean(isConfirmed))
+      );
+  };
+};
+```
+
+Nothing special, we are just defining a function that expects a dialog component to be passed as paramter and return the otehr function that, when called opens a dialog and waits for it response.
+
+Now, let's define a helper function to call a request that will serve as a can activate guard:
+
+```ts
+const ifRequestAllows = <Input = void>(requestFn: (input: Input) => Observable<boolean>) => {
+  const store = dataStore<boolean | null>(null);
+
+  const performRequest = rxRequest({
+    requestFn
+    store,
+    onSuccess: (data) => {
+      store.setData(data);
+    }
+  });
+
+  return (): Observable<boolean> => {
+    performRequest();
+
+    return asObservable(store.loadingState).pipe(
+      withLoadedData,
+      map((response) => Boolean(response))
+    );
+  };
+};
+
+export const withLoadedData = <T>(source: Observable<DataLoadingState<T>>): Observable<T> =>
+  source.pipe(
+    filter((state): state is LoadedWithData<T> => isLoadedWithData(state)),
+    map((state) => state.data)
+  );
+
+export const isLoadedWithData = <TData>(
+  state: DataLoadingState<TData>
+): state is LoadedWithData<TData> => isLoaded(state) && 'data' in state;
+
+export const isLoaded = (state: LoadingState): state is Loaded => state.status === 'Success';
+
+```
+
+The last thing to note here is this: 
+
+```ts
+  const store = dataStore<boolean | null>(null);
+```
+
+Now, since we are expecting some data to be retuned from the backend instead of just sending a command with no body response expected we need to create a different type of a store that will allow us to store this data. That's why the `dataStore` function is used, it resuse the same feature stores used from the `callStateStore` but with the only difference that now we can popualte data:
+
+```ts
+export function withData<TData>(defaultValue: TData) {
+  return signalStoreFeature(
+    withState<{ data: TData }>({ data: defaultValue }),
+    withMethods((store) => ({
+      setData(data: TData) {
+        patchState(store, { data });
+      },
+      clearData() {
+        patchState(store, { data: defaultValue });
+      },
+    }))
+  );
+}
+
+export const withDataStoreFeature = <TData>(defaultValue: TData) => {
+  return signalStoreFeature(
+    withData(defaultValue),
+    withRequestStatus(),
+    withError(),
+    withDataLoadingState((store) => ({ ...store.stateSignals, data: store.stateSignals.data }))
+  );
+};
+
+export const dataStore = <TData>(defaultValue: TData) => {
+  return createInstance(signalStore(withDataStoreFeature(defaultValue)));
+};
+```
+
+Now, let's take a look at our reafactord checkout effects:
+
+```ts
+
+const checkLimit = (payload) => inject(CardLimitApi).isLimitExeeded(checkoutPayload.sum, checkoutPayload.bankAccount);
+
+export class CheckoutEffects {
+  private repo = inject(CheckoutRepository);
+
+  public readonly checkout = rxRequest<CheckoutPayload>({
+    requestFn: (payload) => inject(CheckoutApi).checkout(payload),
+    canActivate: concat(
+      ifRequestAllows(checkLimit),
+      withConfirmationDialog(CheckoutConfirmationDialogComponent)
+    ),
+    store: this.repo.checkoutCallStore,
+  });
+}
+```
+
+We are passing the `canActivate` property which is basically a function that recieves an input and injector and returns a boolean va;ur or a reactive containing a bolean value:
+
+```ts
+
+export type CanActivateGuardFn<Input = void> = (input: Input, injector: Injector) => ValueOrReactive<boolean>;
+
+export interface RxRequestOptions<Input = void, Response = unknown> {
+  ...
+  canActivate?: CanActivateGuardFn<Input>;
+}
+```
+
+Since all dependency injection orchestration and inpur propagation is orchestrated by the `rxRequest`, we can combine our streams however we want and concetraete on the business logic. Such a hard logic and sequntal interdependnt streams becomes a task that any junior developer can easily implement relying on the toolkit that we have now. All we need to do is use a high order `concat` function and pass our guards functions to it as paramters. Then, eveything else will be passed by the rxRequest inner logic:
+
+```ts
+import { from, concatMap, every, take } from 'rxjs';
+
+export const concat =
+  <Input>(...guardFns: Array<CanActivateGuardFn<Input>>): CanActivateGuardFn<Input> =>
+  (input, injector): Observable<boolean> =>
+    from(guardFns).pipe(
+      concatMap((guardFn) =>
+        runInInjectionContext(injector, () => asObservable(guardFn(input, injector)).pipe(take(1)))
+      ),
+      every((value) => value)
+    );
+```
+
+
+If we want to change the logic and make sure conditions are executed simultenialsy and them combine the resolved results we can do it by defining a couple of new functions: 
+
+```ts
+
+const combineGuardResults =
+  (predicate: (results: boolean[]) => boolean) =>
+  <Input = void>(...guardFns: Array<CanActivateGuardFn<Input>>) =>
+  (input: Input, injector: Injector): Observable<boolean> =>
+    combineLatest(
+      runInInjectionContext(injector, () =>
+        guardFns.map((guardFn) => asObservable(guardFn(input, injector)).pipe(take(1)))
+      )
+    ).pipe(map((values) => predicate(values)));
+
+export const every = combineGuardResults((values) => values.every((value) => value));
+export const some = combineGuardResults((values) => values.some((value) => value));
+
+```
+
+```ts
+    rxRequest({
+      ...
+      canActivate: every(
+        ifRequestAllows(checkLimit),
+        withConfirmationDialog(CheckoutConfirmationDialogComponent)
+      ),
+    })
+```
+
+Or, if we get even more complex conditional scenarios, where can implement them since the functional compoistion is at our disposal wothout any barriers:
+
+```ts
+    rxRequest({
+      ...
+      canActivate: concat(
+        every(
+          ifRequestAllows(checkLimit),
+          some(
+            ifRequestAllows(checkAccountOne),
+            ifRequestAllows(checkAccountTwo),
+          )
+        ),
+        withConfirmationDialog(CheckoutConfirmationDialogComponent)
+      ),
+    })
+
+```
+
+The collest part is that now, we can understand the flo without any cognitive oerload since functions names are self-explinitaory.
+
+
+### Souces instead of anemic actions
+
+Traditionally, sticking to the event-driven dogma, we viewed actions as mere triggers carrying an anemic payload, devoid of any real behavior. The actual initiation of the stream typically occurred within one of our effects, leading to complex interdependent chains, as discussed earlier. 
+
+By shifting our mindset to view effects as composed reactive streams and leveraging the power of runInInjectionContext, we can move beyond using actions solely as messages. Instead, we can shift the logic of initiating the stream into payload factories, since these functions can now be invoked with the ability to inject dependencies directly. This allows them to perform asynchronous tasks that initiate the stream more naturally. In this way, actions become more powerful, acting as reactive sources that encapsulate both the payload and the behavior required to kickstart the stream:
+
+
+```ts
+export const getApplicationDraft = () => {
+  const applicationService 
+}
+
+const getApplicationDraft = createAction('Fetch application draft', () => {
+  const store = dataStore<ApplicationDraft>();
+  
+  const getDraft = rxRequest({
+    requestFn: () => inject(ApplicationService).getDraft(),
+    store
+  });
+
+  getDraft();
+
+  return getDraft().pipe(
+    withLoadedData
+  )
+});
+```
+
