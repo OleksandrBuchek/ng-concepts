@@ -5,7 +5,7 @@ import { CanActivateGuardFn } from '../../models';
 
 export const concat =
   <Input>(...guardFns: Array<CanActivateGuardFn<Input>>): CanActivateGuardFn<Input> =>
-  (input, injector) =>
+  (input, injector): Observable<boolean> =>
     from(guardFns).pipe(
       concatMap((guardFn) =>
         runInInjectionContext(injector, () => asObservable(guardFn(input, injector)).pipe(take(1)))

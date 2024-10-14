@@ -1,28 +1,18 @@
-import { inject, Injector, runInInjectionContext } from '@angular/core';
+import { inject, Injector, Provider } from '@angular/core';
 import { RxEffectOptions, RxInjectablePipeline, RxInjectablePipelineInput } from '../../models';
 import { ValueOrReactive } from '@shared/util-types';
-import { IsFinalStep } from '../../providers';
 import { extractActionPayload } from './extract-action-payload.util';
 import { createInternalAction } from '../action.util';
 import { composePipeline, withFilterAsync, withInjector } from '../shared';
 import { onGuardReject } from './effect-hooks.util';
 import { map, Observable } from 'rxjs';
 
-const getInjector = <Payload>(options: RxEffectOptions<Payload>): Injector => {
-  const parentInjector = inject(Injector);
-
+const getPipelineInjector = (providers: Provider[] = []): Injector => {
   return Injector.create({
-    parent: parentInjector,
-    providers: options.providers ?? [],
+    parent: inject(Injector),
+    providers
   });
-};
-
-const getEffectFnInjector = (parent: Injector): Injector => {
-  return Injector.create({
-    parent,
-    providers: [IsFinalStep.provide(true)],
-  });
-};
+}
 
 const getRxEffectPipeline = <Input = void>(
   options: RxEffectOptions<Input>
@@ -50,17 +40,16 @@ const extractInput = <Input>(input$: Observable<RxInjectablePipelineInput<Input>
   return input$.pipe(map(({ input }) => input));
 };
 
-export const rxEffect = <Input>(options: RxEffectOptions<Input>) => {
-  const injector = getInjector(options);
+export const rxEffect = <Input = void>(options: RxEffectOptions<Input>) => {
+  const injector = getPipelineInjector(options.providers);
+
   const actions = getActions(options, injector);
 
   const effectPipeline = getRxEffectPipeline(options);
 
   const inputWithInjector$ = withInjector(actions.actionPayload$, injector);
 
-  runInInjectionContext(getEffectFnInjector(injector), () => {
-    options.effectFn(extractInput(effectPipeline(inputWithInjector$)));
-  });
+  options.effectFn(extractInput(effectPipeline(inputWithInjector$)));
 
   return (payload: ValueOrReactive<Input>): void => {
     actions.dispatch(payload);

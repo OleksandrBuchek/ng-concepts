@@ -1,18 +1,18 @@
 import { pipe, take, filter, retry as retryOperator, map, Observable, switchMap, tap } from 'rxjs';
 import {
-  RxRequestOptions,
   RxInjectablePipeline,
   RxInjectablePipelineInput,
   RxInjectablePipelineModifierFn,
   CanActivateGuardFn,
+  RxRequestRetryOptions,
 } from '../../models';
 import { runInInjectionContext } from '@angular/core';
 import { asObservable } from '@shared/util-rxjs-interop';
 
 export const withSingleInvocation =
-  <Input = void, Response = unknown>(options: RxRequestOptions<Input, Response>) =>
+  <Input = void, Response = unknown>(once = false) =>
   (pipeline: RxInjectablePipeline<Input, Response>) => {
-    return options.once ? pipe(pipeline, take(1)) : pipeline;
+    return once ? pipe(pipeline, take(1)) : pipeline;
   };
 
 export const withFilterAsync =
@@ -38,16 +38,14 @@ export const withFilterAsync =
   };
 
 export const withRetry =
-  <Input = void, Response = unknown>(options: RxRequestOptions<Input, Response>) =>
-  (pipeline: RxInjectablePipeline<Input, Response>) => {
-    const retry = options.retry;
-
-    return retry
+  <Input = void, Response = unknown>(options?: RxRequestRetryOptions) =>
+  (pipeline: RxInjectablePipeline<Input, Response>): RxInjectablePipeline<Input, Response> => {
+    return options
       ? pipe(
           pipeline,
           retryOperator({
-            count: retry.count,
-            delay: retry.delay,
+            count: options.count,
+            delay: options.delay,
           })
         )
       : pipeline;

@@ -15,6 +15,8 @@ export type RxInjectablePipelineModifierFn<Input = void, Response = unknown> = (
   pipeline: RxInjectablePipeline<Input, Response>
 ) => RxInjectablePipeline<Input, Response>;
 
+export type RxRequestRetryOptions = { count: number } & Partial<{ delay: number }>;
+
 export interface RxRequestOptions<Input = void, Response = unknown> {
   requestFn: (input: Input) => Observable<Response> | Promise<Response>;
   store?: Partial<RequestStore> | null;
@@ -24,7 +26,7 @@ export interface RxRequestOptions<Input = void, Response = unknown> {
   onSuccess?: (response: Response, input: Input) => void;
   once?: boolean;
   before?: () => void;
-  retry?: { count: number } & Partial<{ delay: number }>;
+  retry?: RxRequestRetryOptions;
 }
 
 export interface FetchEntitiesOptions<Entity, Input = void> extends RxRequestOptions<Input, Entity[]> {
