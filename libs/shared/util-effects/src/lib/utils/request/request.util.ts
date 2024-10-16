@@ -1,9 +1,14 @@
-import { Injector, inject, runInInjectionContext } from '@angular/core';
+import { Inject, Injector, inject, runInInjectionContext } from '@angular/core';
 import { rxMethod } from '@ngrx/signals/rxjs-interop';
 import { AppError, catchAppError, handleError } from '@shared/util-error-handling';
 import { getValue } from '@shared/util-helpers';
 import { pipe, tap, switchMap, from } from 'rxjs';
-import { RxRequestOptions, RxInjectablePipeline, RxInjectablePipelineInput, ProvidableRxRequestOptions } from '../../models';
+import {
+  RxRequestOptions,
+  RxInjectablePipeline,
+  RxInjectablePipelineInput,
+  ProvidableRxRequestOptions,
+} from '../../models';
 import { provideRequestOptions } from '../../providers';
 import { ValueOrReactive } from '@shared/util-types';
 import { asObservable } from '@shared/util-rxjs-interop';
@@ -12,17 +17,17 @@ import { injectRequestOptions } from '../injectors';
 import { composePipeline, withFilterAsync, withInjector, withRetry, withSingleInvocation } from '../shared';
 import { tryCatch } from '@shared/util-try-catch';
 
-
-const getPipelineInjector = <Input = void, Response = unknown>(outerInjector: Injector, options: ProvidableRxRequestOptions<Input, Response>): Injector => {
-  const parent = tryCatch(() => inject(Injector, { optional: true }), outerInjector) ?? outerInjector;
+const getPipelineInjector = <Input = void, Response = unknown>(
+  fallbackInjector: Injector,
+  options: ProvidableRxRequestOptions<Input, Response>
+): Injector => {
+  const parent = tryCatch(() => inject(Injector, { optional: true }), fallbackInjector) ?? fallbackInjector;
 
   return Injector.create({
     parent,
-    providers: [
-      provideRequestOptions(options)
-    ]
+    providers: [provideRequestOptions(options)],
   });
-}
+};
 
 const handleErrorFor = <Input = void, Response = unknown>(
   input: Input,
@@ -96,9 +101,9 @@ export const rxRequest = <Input = void, Response = unknown>(options: RxRequestOp
 
   const runPipeline = rxMethod(getRxRequestPipeline(options));
 
-  return (input: ValueOrReactive<Input>) => {
-    const injector = getPipelineInjector(outerInjector, options);
-  
+  return (input: ValueOrReactive<Input>, inputInjector = outerInjector) => {
+    const injector = getPipelineInjector(inputInjector ?? outerInjector, options);
+
     return runPipeline(withInjector(input, injector));
   };
 };

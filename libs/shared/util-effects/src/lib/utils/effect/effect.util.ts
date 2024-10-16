@@ -10,9 +10,9 @@ import { map, Observable } from 'rxjs';
 const getPipelineInjector = (providers: Provider[] = []): Injector => {
   return Injector.create({
     parent: inject(Injector),
-    providers
+    providers,
   });
-}
+};
 
 const getRxEffectPipeline = <Input = void>(
   options: RxEffectOptions<Input>
@@ -22,16 +22,16 @@ const getRxEffectPipeline = <Input = void>(
   )();
 };
 
-const getActions = <Input>(options: RxEffectOptions<Input>, injector: Injector) => {
+const getSources = <Input>(options: RxEffectOptions<Input>, injector: Injector) => {
   const internalAction = createInternalAction((input: ValueOrReactive<Input>) => input);
 
   const actionPayload$ = extractActionPayload(injector, {
     ...options,
-    actions: [...(options.actions ?? []), internalAction],
+    sources: [...(options.sources ?? []), internalAction],
   });
 
   return {
-    dispatch: internalAction,
+    emit: internalAction,
     actionPayload$,
   };
 };
@@ -43,15 +43,15 @@ const extractInput = <Input>(input$: Observable<RxInjectablePipelineInput<Input>
 export const rxEffect = <Input = void>(options: RxEffectOptions<Input>) => {
   const injector = getPipelineInjector(options.providers);
 
-  const actions = getActions(options, injector);
+  const sources = getSources(options, injector);
 
   const effectPipeline = getRxEffectPipeline(options);
 
-  const inputWithInjector$ = withInjector(actions.actionPayload$, injector);
+  const inputWithInjector$ = withInjector(sources.actionPayload$, injector);
 
-  options.effectFn(extractInput(effectPipeline(inputWithInjector$)));
+  options.effectFn(extractInput(effectPipeline(inputWithInjector$)), injector);
 
-  return (payload: ValueOrReactive<Input>): void => {
-    actions.dispatch(payload);
+  return (input: ValueOrReactive<Input>): void => {
+    sources.emit(input);
   };
 };
