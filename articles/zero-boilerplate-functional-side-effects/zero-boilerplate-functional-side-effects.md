@@ -1,12 +1,17 @@
 # Composable Side Effects With Zero Boilerplate
 
-Side effects and state management are central concepts in frontend development, shaping how modern applications interact with the outside world and manage internal data flow. Effective management of these is crucial because they enable the application to perform meaningful work—side effects allow an application to "do" things, while state ensures that these actions are consistently reflected across the user interface. Over the years, the strategies for managing both state and side effects have evolved alongside the increasing complexity of modern web applications.
+Side effects and state management are central concepts in frontend development, shaping how modern applications interact with the outside world and manage internal data flow.
+Effective management of these is crucial because they enable the application to perform meaningful work—side effects allow an application to "do" things, while state ensures that these actions are consistently reflected across the user interface.
+Over the years, the strategies for managing both state and side effects have evolved alongside the increasing complexity of modern web applications.
 
-During this time, we’ve been able to identify common scenarios developers frequently encounter. Modern tools and libraries now focus on reducing boilerplate and improving modularity. While state management has seen significant improvements—especially with the introduction of signal-based stores—side effects remain a pain point. Developers still face a ton challanges which have persisted for years.
+During this time, we’ve been able to identify common scenarios developers frequently encounter.
+While state management has seen significant improvements—especially with the introduction of signal-based stores—side effects remain a pain point.
+Developers still face many challanges which have persisted for years.
+However, with Angular’s introduction of two powerful features—`runInInjectionContext` and `DestroyRef`—a promising solution has emerged.
+These features offer new opportunities to address the complexities of managing side effects more effectively, making applications more maintainable and scalable, while drastically reducing the need for excessive boilerplate in handling typical scenarios.
 
-However, with Angular’s introduction of two powerful features—`runInInjectionContext` and `DestroyRef`—a promising solution has emerged. These features offer new opportunities to address the complexities of managing side effects more effectively, making applications more maintainable and scalable, while drastically reducing the need for excessive boilerplate in handling typical scenarios.
-
-In this article, we’ll briefly explore how approaches to state management and side effects have evolved over time. Then, we’ll focus specifically on side effects, examining the challenges developers have faced in managing them and how these new features may finally offer a permanent solution.
+In this article, we’ll briefly explore how approaches to state management and side effects have evolved over time.
+Then, we’ll focus specifically on side effects, examining the challenges developers have faced in managing them and how these new features may finally offer a permanent solution.
 
 ## A Brief History Of ~~Mankind~~ State Management and Side Effects
 
@@ -33,7 +38,7 @@ export class TodoService {
       }),
       tap(() => {
         this.isLoading$.next(false);
-      })
+      }),
     );
   }
 
@@ -84,25 +89,43 @@ export const todoReducer = createReducer(
 );
 ```
 
-However, a significant drawback of the event-driven approach was the overwhelming amount of boilerplate code it required, along with its lack of modularity. A particularly frustrating aspect was the need to repeatedly define nearly identical actions for common scenarios, such as loading, success, and failure. Developers found themselves duplicating code, with only minor changes to action names. In an effort to address the ever-increasing amount of boilerplate, the industry began shifting towards the class based approach, which we will discuss next.
+However, a significant drawback of the event-driven approach was the overwhelming amount of boilerplate code it required, along with its lack of modularity.
+A particularly frustrating aspect was the need to repeatedly define nearly identical actions for common scenarios, such as loading, success, and failure.
+Developers found themselves duplicating code, with only minor changes to action names.
+In an effort to address the ever-increasing amount of boilerplate, the industry began shifting towards the class based approach, which we will discuss next.
 
 ### The Classes Dogma – Since Angular relies on classes everywhere, we must do the same, right?
 
-With Angular’s heavy reliance on classes, many developers naturally assumed that state management should follow the same pattern. Frameworks like Akita embraced this philosophy by emphasizing modularity through various types of classes, such as entity stores and queries. This class-oriented approach allowed developers to encapsulate logic more effectively. However, while it helped with separation of concerns, it still posed orchestration challenges, as managing multiple interdependent classes could become complex. This echoed some of the same difficulties developers faced with services, albeit with better organization. Ngrx also introduced it's class based solution with the introduction of Components Store in an attempt to tackle the modularity and boilerplate issue.
+With Angular’s heavy reliance on classes, many developers naturally assumed that state management should follow the same pattern.
+Frameworks like Akita embraced this philosophy by emphasizing modularity through various types of classes, such as entity stores and queries.
+This class-oriented approach allowed developers to encapsulate logic more effectively.
+However, while it helped with separation of concerns, it still posed orchestration challenges, as managing multiple interdependent classes could become complex.
+This echoed some of the same difficulties developers faced with services, albeit with better organization.
+Ngrx also introduced it's class based solution with the introduction of Components Store in an attempt to tackle the modularity and boilerplate issue.
 
 ### Application is Just a Bunch of Features Composed Together
 
-Both event-driven and class-based approaches share a fundamental flaw: they focus heavily on concepts like separation of concerns and reduced boilerplate but give little attention to composition and reusability. What happens when we need to combine various types of functionality—such as managing an entities store, and enhancing it with a loading store, filter store, table store, along with some custom store logic?
+Both event-driven and class-based approaches share a fundamental flaw: they are not well composabable.
+What happens when we need to combine various types of functionality—such as managing an entities store, and enhancing it with a loading store, filter store, table store, along with some custom store logic?
 
-This is when both approaches begin to show their rigidity, as they don't provide a consistent interface for composing multiple mini stores into a larger, cohesive store. However, the true essence of software design is that building an application involves breaking down a complex problem into smaller, manageable ones. Each smaller problem—often represented by a feature—is solved by different parts of the codebase, and these parts are then composed together to create a unified system. Unfortunately, focusing on feature composition has been the missing piece of the puzzle.
+This is when both approaches begin to show their rigidity, as they don't provide a consistent interface for composing multiple mini stores into a larger, cohesive store.
+However, the true essence of software design is that building an application involves breaking down a complex problem into smaller, manageable ones.
+Each smaller problem—often represented by a feature—is solved by different parts of the codebase, and these parts are then composed together to create a unified system.
+Unfortunately, focusing on feature composition has been the missing piece of the puzzle.
 
 The reason both approaches struggle to be truly composable is simple:
 
-Composition is inherently more difficult with classes: Class-based inheritance is rigid and unsuitable when combining different types of functionality. Class-oriented tools like decorators, mixins, and implementation inheritance make customization and composition hard and inconsistent.
+Composition is inherently more difficult with classes: Class-based inheritance is rigid and unsuitable when combining different types of functionality. Class-oriented stuff like decorators, class mixins, and implementation inheritance make customization and composition hard and inconsistent.
 
-As for the event-driven approach, one of its biggest challenges is the need to define unique action names for every interaction or flow. This requirement for uniqueness severely limits the reusability of actions, as each action becomes tied to a specific context. Even when the same logical flow is needed elsewhere in the application, a new action must be created—often with a similar name but bound to a different reducer. This creates a tight coupling between actions and reducers, making it difficult to compose or reuse logic across different parts of the application. In other words, the main issue with this approach is its lack of encapsulation. Each action, reducer, and effect is closely tied to a specific feature, which prevents efficient reuse of common flows and increases the maintenance burden.
+As for the event-driven approach, one of its biggest challenges is the need to define unique action for every interaction or flow.
+This requirement for uniqueness severely limits the reusability of actions, as each action becomes tied to a specific context.
+Even when the same logical flow is needed elsewhere in the application, a new action must be created—often with a similar name but bound to a different reducer.
+This creates a tight coupling between actions and reducers, making it difficult to compose or reuse logic across different parts of the application.
+In other words, the main issue with this approach is its lack of encapsulation.
+Each action, reducer, and effect is closely mutually intertwined, which prevents efficient reuse of common flows and increases the maintenance burden.
 
-Moreover, the flat store philosophy doesn’t work well with nested structures like entities, requiring additional tools, such as NgRx Entity. While NgRx Entity simplifies managing collections of entities, it introduces its own API and patterns, leading to a fragmented codebase where multiple approaches must be combined.
+Moreover, the flat store philosophy doesn’t work well with nested structures like entities, requiring additional tools, such as NgRx Entity.
+While NgRx Entity simplifies managing collections of entities, it introduces its own API and patterns, leading to a fragmented codebase where multiple approaches must be combined.
 
 ### The State Management Renessaince With Functional Mixins
 
@@ -112,7 +135,14 @@ The real breakthrough came with the introduction of the Elf.js library. By movin
 import { createStore, withProps, withEntities } from '@ngneat/elf';
 
 class TodoRepostory {
-  private readonly store = createStore({ name: 'todo' }, withProps<{ total: number }>({ total: 0 }), withEntities<Todo>({ idKey: 'id' }), withRequestsStatus(initializeAsPending('todos')), withTableStore(), withFiltersStore());
+  private readonly store = createStore(
+    { name: 'todo' },
+    withProps<{ total: number }>({ total: 0 }),
+    withEntities<Todo>({ idKey: 'id' }),
+    withRequestsStatus(initializeAsPending('todos')),
+    withTableStore(),
+    withFiltersStore(),
+  );
 }
 ```
 
@@ -394,7 +424,7 @@ export function withRequestStatus() {
       isLoaded: computed(() => store.requestStatus() === 'Success'),
       isFailed: computed(() => store.requestStatus() === 'Failed'),
       isIdle: computed(() => store.requestStatus() === 'Idle'),
-    }))
+    })),
   );
 }
 ```
@@ -409,7 +439,7 @@ export function withError<TError = HttpErrorResponse>() {
       setError(error: AppError<TError> | null) {
         patchState(store, { error });
       },
-    }))
+    })),
   );
 }
 ```
@@ -437,7 +467,7 @@ export const withLoadingState = <_>() => {
     },
     withComputed((store) => ({
       loadingState: getLoadingState(store),
-    }))
+    })),
   );
 };
 ```
@@ -476,7 +506,8 @@ export interface RxRequestOptions<Input = void, Response = unknown> {
 
 export type ValueOrReactive<TValue> = TValue | Observable<TValue> | Signal<TValue>;
 
-export const withInjector = <Input = void>(input: ValueOrReactive<Input>, injector: Injector) => asObservable(input).pipe(map((input) => ({ input, injector })));
+export const withInjector = <Input = void>(input: ValueOrReactive<Input>, injector: Injector) =>
+  asObservable(input).pipe(map((input) => ({ input, injector })));
 
 export const rxRequest = <Input = void, Response = unknown>(options: RxRequestOptions<Input, Response>) => {
   const injector = inject(Injector);
@@ -484,7 +515,7 @@ export const rxRequest = <Input = void, Response = unknown>(options: RxRequestOp
   const runPipeline = rxMethod(getRxRequestPipeline(options));
 
   return (input: ValueOrReactive<Input>) => {
-    return runPipeline(withInjector(input, injector));
+    return runPipeline(input);
   };
 };
 ```
@@ -535,7 +566,8 @@ export class CheckoutFacade {
 }
 ```
 
-By using rxRequest, we simplify handling HTTP requests by automating loading state tracking and centralizing error handling. The store updates the request status (Loading, Success, or Error) automatically, while reducing boilerplate code. rxRequest abstracts the complexity of the request lifecycle, providing flexibility through options like requestFn and store. This eliminates the need to manually manage status changes or errors, improving code readability and maintainability.
+By using rxRequest, we simplify handling HTTP requests by automating loading state tracking and centralizing error handling.
+The store updates the request status (Loading, Success, or Error) automatically, while reducing boilerplate code. rxRequest abstracts the complexity of the request lifecycle, providing flexibility through options like requestFn and store. This eliminates the need to manually manage status changes or errors, improving code readability and maintainability.
 
 Let's see how this is done under the hood:
 
@@ -599,7 +631,7 @@ const withConfirmationDialog = <T, D>(component: T, data?: D) => {
       .afterClosed()
       .pipe(
         defaultIfEmpty(false),
-        map((isConfirmed) => Boolean(isConfirmed))
+        map((isConfirmed) => Boolean(isConfirmed)),
       );
   };
 };
@@ -626,7 +658,7 @@ const ifRequestAllows = <Input = void>(requestFn: (input: Input) => Observable<b
 
     return asObservable(store.loadingState).pipe(
       withLoadedData,
-      map((response) => Boolean(response))
+      map((result) => Boolean(result))
     );
   };
 };
@@ -645,10 +677,10 @@ export const isLoaded = (state: LoadingState): state is Loaded => state.status =
 
 ```
 
-The last thing to note here is this: 
+The last thing to note here is this:
 
 ```ts
-  const store = dataStore<boolean | null>(null);
+const store = dataStore<boolean | null>(null);
 ```
 
 Now, since we are expecting some data to be retuned from the backend instead of just sending a command with no body response expected we need to create a different type of a store that will allow us to store this data. That's why the `dataStore` function is used, it resuse the same feature stores used from the `callStateStore` but with the only difference that now we can popualte data:
@@ -673,7 +705,7 @@ export const withDataStoreFeature = <TData>(defaultValue: TData) => {
     withData(defaultValue),
     withRequestStatus(),
     withError(),
-    withDataLoadingState((store) => ({ ...store.stateSignals, data: store.stateSignals.data }))
+    withDataLoadingState(...)
   );
 };
 
@@ -682,10 +714,9 @@ export const dataStore = <TData>(defaultValue: TData) => {
 };
 ```
 
-Now, let's take a look at our reafactord checkout effects:
+Now, let's take a look at our refactord checkout effects:
 
 ```ts
-
 const checkLimit = (payload) => inject(CardLimitApi).isLimitExeeded(checkoutPayload.sum, checkoutPayload.bankAccount);
 
 export class CheckoutEffects {
@@ -693,16 +724,13 @@ export class CheckoutEffects {
 
   public readonly checkout = rxRequest<CheckoutPayload>({
     requestFn: (payload) => inject(CheckoutApi).checkout(payload),
-    canActivate: concat(
-      ifRequestAllows(checkLimit),
-      withConfirmationDialog(CheckoutConfirmationDialogComponent)
-    ),
+    canActivate: concat(ifRequestAllows(checkLimit), withConfirmationDialog(CheckoutConfirmationDialogComponent)),
     store: this.repo.checkoutCallStore,
   });
 }
 ```
 
-We are passing the `canActivate` property which is basically a function that recieves an input and injector and returns a boolean va;ur or a reactive containing a bolean value:
+We are passing the `canActivate` property which is basically a function that recieves an input and injector and returns a boolean value or a reactive containing a bolean value:
 
 ```ts
 
@@ -719,35 +747,36 @@ Since all dependency injection orchestration and inpur propagation is orchestrat
 ```ts
 import { from, concatMap, every, take } from 'rxjs';
 
-export const concat =
-  <Input>(...guardFns: Array<CanActivateGuardFn<Input>>): CanActivateGuardFn<Input> =>
-  (input, injector): Observable<boolean> =>
-    from(guardFns).pipe(
+export const concat = <Input>(...guardFns: Array<CanActivateGuardFn<Input>>): CanActivateGuardFn<Input> => {
+  return (input, injector): Observable<boolean> => {
+    return from(guardFns).pipe(
       concatMap((guardFn) =>
-        runInInjectionContext(injector, () => asObservable(guardFn(input, injector)).pipe(take(1)))
+        runInInjectionContext(injector, () => asObservable(guardFn(input, injector)).pipe(take(1))),
       ),
-      every((value) => value)
+      every((value) => value),
     );
+  }
+
+};
 ```
 
-
-If we want to change the logic and make sure conditions are executed simultenialsy and them combine the resolved results we can do it by defining a couple of new functions: 
+If we want to change the logic and make sure conditions are executed simultenialsy and them combine the resolved results we can do it by defining a couple of new functions:
 
 ```ts
-
-const combineGuardResults =
-  (predicate: (results: boolean[]) => boolean) =>
-  <Input = void>(...guardFns: Array<CanActivateGuardFn<Input>>) =>
-  (input: Input, injector: Injector): Observable<boolean> =>
-    combineLatest(
-      runInInjectionContext(injector, () =>
-        guardFns.map((guardFn) => asObservable(guardFn(input, injector)).pipe(take(1)))
-      )
-    ).pipe(map((values) => predicate(values)));
+const combineGuardResults = (predicate: (results: boolean[]) => boolean) => {
+  return <Input = void>(...guardFns: Array<CanActivateGuardFn<Input>>) => {
+    return (input: Input, injector: Injector): Observable<boolean> => {
+      return combineLatest(
+        runInInjectionContext(injector, () =>
+          guardFns.map((guardFn) => asObservable(guardFn(input, injector)).pipe(take(1))),
+        ),
+      ).pipe(map((values) => predicate(values)));
+    }
+  };
+};
 
 export const every = combineGuardResults((values) => values.every((value) => value));
 export const some = combineGuardResults((values) => values.some((value) => value));
-
 ```
 
 ```ts
@@ -760,7 +789,7 @@ export const some = combineGuardResults((values) => values.some((value) => value
     })
 ```
 
-Or, if we get even more complex conditional scenarios, where can implement them since the functional compoistion is at our disposal wothout any barriers:
+Or, if we get even more complex conditional scenarios, where can implement them since the functional compoistion is at our disposal without any barriers:
 
 ```ts
     rxRequest({
@@ -779,34 +808,73 @@ Or, if we get even more complex conditional scenarios, where can implement them 
 
 ```
 
-The collest part is that now, we can understand the flo without any cognitive oerload since functions names are self-explinitaory.
-
+The collest part is that now, we can understand the flow without any cognitive overload since functions names are self-explinitory.
 
 ### Souces instead of anemic actions
 
-Traditionally, sticking to the event-driven dogma, we viewed actions as mere triggers carrying an anemic payload, devoid of any real behavior. The actual initiation of the stream typically occurred within one of our effects, leading to complex interdependent chains, as discussed earlier. 
+Traditionally, sticking to the event-driven dogma, we viewed actions as mere triggers carrying an anemic payload, devoid of any real behavior. The actual initiation of the stream typically occurred within one of our effects, leading to complex interdependent chains, as discussed earlier.
 
-By shifting our mindset to view effects as composed reactive streams and leveraging the power of runInInjectionContext, we can move beyond using actions solely as messages. Instead, we can shift the logic of initiating the stream into payload factories, since these functions can now be invoked with the ability to inject dependencies directly. This allows them to perform asynchronous tasks that initiate the stream more naturally. In this way, actions become more powerful, acting as reactive sources that encapsulate both the payload and the behavior required to kickstart the stream:
+By shifting our mindset to view effects as composed reactive streams and leveraging the power of runInInjectionContext, we can move beyond using actions solely as messages. Instead, we can shift the logic of initiating the stream into action payload factories, since these functions can now be invoked with the ability to inject dependencies directly. This allows them to perform asynchronous tasks that initiate the stream more naturally. In this way, actions become more powerful, acting as reactive sources that encapsulate both the payload resolving and the behavior required to kickstart the stream.
 
+To demostrate it let's take a look at an example with a form, which draft we are retriveing from the backend, and if a draft has been previosly saved while filling the form at last time, we are dispalying a confriamtion dialog that propose to as uer to apply teh last saved cahnges. If a draft hasn't been saved - do nothing.
+
+Let's first create an action that will initiate the stream. It will send a request a server, check for a saved draft and return an obseravale that will only emit a payload if a draft is returend from the backend:
 
 ```ts
-export const getApplicationDraft = () => {
-  const applicationService 
-}
+const getCheckoutFormDraft = createAction('Fetch checkout form draft', () => {
+  const store = dataStore<CheckoutFormDraft>();
 
-const getApplicationDraft = createAction('Fetch application draft', () => {
-  const store = dataStore<ApplicationDraft>();
-  
   const getDraft = rxRequest({
-    requestFn: () => inject(ApplicationService).getDraft(),
-    store
+    requestFn: () => inject(CheckoutService).getDraft(),
+    store,
   });
 
   getDraft();
 
-  return getDraft().pipe(
-    withLoadedData
-  )
+  return asObservable(store.loadingState).pipe(
+    withLoadedData,
+    filter((draft) => Boolean(draft)),
+  );
 });
 ```
 
+Then, to listen and react to these actions we will introduce new helper called `rxEffect`:
+
+```ts
+class MyEffects {
+  private readonly form = inject<FromGroup<CheckoutFormDraft>>(CHECKOUT_FORM);
+
+  public readonly applyCheckoutFormDraft = rxEffect<CheckoutFormDraft>({
+    effectFn: rxMethod(
+      pipe(
+        tap((draft: CheckoutFormDraft) => {
+          this.form.patchValue(draft);
+        }),
+      ),
+    ),
+    sources: [getCheckoutFormDraft],
+    canActivate: withConfirmationDialog(ConfirmCheckoutFormDraftApplicationDialogComponent),
+  });
+}
+```
+
+The `rxEffect` if a high order helper function dedicated to listen to events or to be inkoved manually as a regular method. It can also filter a stream with the canActivate property and them it inkoves. It expected the effectFn which is going to called eveytime the rxEffect function is invoked or of of it sources emits a value and the canActive guurds return true
+
+```ts
+export interface RxEffectOptions<Input = void> {
+  effectFn: (input: ValueOrReactive<Input>, injector: Injector) => void;
+  sources?: Array<Action<Input> | Observable<Input>>;
+  canActivate?: CanActivateGuardFn<Input>;
+  ...
+}
+
+export const rxEffect = <Input = void>(options: RxEffectOptions<Input>) => {
+  const injector = inject(Injector);
+  ...
+  return (input: ValueOrReactive<Input>): void => {
+    options.effectFn(input, injector);
+  };
+}
+```
+
+We don't actually need any stores or dispatchers to disaptch this events.

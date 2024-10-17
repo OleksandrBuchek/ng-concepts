@@ -1,4 +1,4 @@
-import { inject, Injector, Provider } from '@angular/core';
+import { inject, Injector, Provider, runInInjectionContext } from '@angular/core';
 import { RxEffectOptions, RxInjectablePipeline, RxInjectablePipelineInput } from '../../models';
 import { ValueOrReactive } from '@shared/util-types';
 import { extractActionPayload } from './extract-action-payload.util';
@@ -49,7 +49,9 @@ export const rxEffect = <Input = void>(options: RxEffectOptions<Input>) => {
 
   const inputWithInjector$ = withInjector(sources.actionPayload$, injector);
 
-  options.effectFn(extractInput(effectPipeline(inputWithInjector$)), injector);
+  runInInjectionContext(injector, () => {
+    options.effectFn(extractInput(effectPipeline(inputWithInjector$)), injector);
+  });
 
   return (input: ValueOrReactive<Input>): void => {
     sources.emit(input);
