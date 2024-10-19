@@ -5,7 +5,7 @@ import { RxEffectOptions } from '../../models';
 import { onEffectInit } from './effect-hooks.util';
 
 export const extractActionPayload = <Payload>(injector: Injector, options: RxEffectOptions<Payload>) => {
-  const actionChanges$ = (options.actions ?? []).map(({ changes$ }) => changes$);
+  const actionChanges$ = (options.sources ?? []).map(({ changes$ }) => changes$);
 
   return merge(...actionChanges$).pipe(
     switchMap((event) =>

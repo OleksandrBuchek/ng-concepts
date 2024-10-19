@@ -1,16 +1,16 @@
 import { Injector, runInInjectionContext } from '@angular/core';
 import { asObservable } from '@shared/util-rxjs-interop';
-import { Observable, from, concatMap, take, every, map, combineLatest } from 'rxjs';
+import { Observable, from, concatMap, take, every as everyOperator, map, combineLatest } from 'rxjs';
 import { CanActivateGuardFn } from '../../models';
 
 export const concat =
   <Input>(...guardFns: Array<CanActivateGuardFn<Input>>): CanActivateGuardFn<Input> =>
-  (input, injector) =>
+  (input, injector): Observable<boolean> =>
     from(guardFns).pipe(
       concatMap((guardFn) =>
         runInInjectionContext(injector, () => asObservable(guardFn(input, injector)).pipe(take(1)))
       ),
-      every((value) => value)
+      everyOperator((value) => value)
     );
 
 const combineGuardResults =
@@ -23,5 +23,5 @@ const combineGuardResults =
       )
     ).pipe(map((values) => predicate(values)));
 
-export const all = combineGuardResults((values) => values.every((value) => value));
+export const every = combineGuardResults((values) => values.every((value) => value));
 export const some = combineGuardResults((values) => values.some((value) => value));

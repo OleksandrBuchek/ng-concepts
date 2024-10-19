@@ -24,12 +24,12 @@ export const createAction = <Type extends string, PayloadFactory extends (...arg
   return action;
 };
 
-const INTERNAL_ACTION = Symbol('INTERNAL_EFFECT_ACTION');
-
 export const createInternalAction = <PayloadFactory extends (...args: any[]) => any = never>(
   payloadFactory?: PayloadFactory
-): DispatchableAction<typeof INTERNAL_ACTION, PayloadFactory> => {
+): DispatchableAction<symbol, PayloadFactory> => {
   const changesSubject$ = new Subject<ActionContext<typeof INTERNAL_ACTION, PayloadFactory>>();
+
+  const INTERNAL_ACTION = Symbol('INTERNAL_EFFECT_ACTION');
 
   const action = (...args: Parameters<PayloadFactory>): void => {
     changesSubject$.next({

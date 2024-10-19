@@ -3,3 +3,4 @@ export * from './lib/entities-store.feature';
 export * from './lib/error-store.feature';
 export * from './lib/request-status-store.feature';
 export * from './lib/call-state-store.feature';
+export * from './lib/data-store.feature';
